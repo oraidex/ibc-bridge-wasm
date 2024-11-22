@@ -842,19 +842,6 @@ pub fn execute_delete_mapping_pair(
 #[entry_point]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     // we don't need to save anything if migrating from the same version
-    let cfg = Config {
-        default_timeout: msg.default_timeout,
-        default_gas_limit: msg.default_gas_limit,
-        fee_denom: "orai".to_string(),
-        swap_router_contract: RouterController(msg.swap_router_contract),
-        token_fee_receiver: msg.token_fee_receiver,
-        relayer_fee_receiver: msg.relayer_fee_receiver,
-        converter_contract: ConverterController(msg.converter_contract),
-        osor_entrypoint_contract: msg.osor_entrypoint_contract,
-        token_factory_addr: msg.token_factory_addr,
-    };
-    CONFIG.save(deps.storage, &cfg)?;
-
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::new())
