@@ -166,6 +166,9 @@ pub fn execute(
             args,
         } => ibc_hooks_receive(deps, env, info, func, orai_receiver, args),
         ExecuteMsg::RegisterDenom(msg) => register_denom(deps, info, msg),
+        ExecuteMsg::WithdrawAsset { coin, receiver } => {
+            execute_withdraw_asset(deps, info, coin, receiver)
+        }
     }
 }
 
@@ -176,6 +179,24 @@ pub fn is_caller_contract(caller: Addr, contract_addr: Addr) -> StdResult<()> {
         ));
     }
     Ok(())
+}
+
+// withdraw stuck coin and transfer back to user
+// only owner can execute
+fn execute_withdraw_asset(
+    deps: DepsMut,
+    info: MessageInfo,
+    coin: Amount,
+    receiver: Option<Addr>,
+) -> Result<Response, ContractError> {
+    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+    let receiver = receiver.unwrap_or(info.sender);
+
+    let msg = coin.send_amount(receiver.to_string(), None);
+
+    Ok(Response::new()
+        .add_attributes(vec![("action", "withdraw_asset")])
+        .add_message(msg))
 }
 
 pub fn register_denom(
