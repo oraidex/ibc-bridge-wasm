@@ -36,24 +36,7 @@ pub struct AllowMsg {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {
-    pub token_fee_receiver: Addr,
-
-    pub relayer_fee_receiver: Addr,
-    /// Default timeout for ics20 packets, specified in seconds
-    pub default_timeout: u64,
-    /// If set, contracts off the allowlist will run with this gas limit.
-    /// If unset, will refuse to accept any contract off the allow list.
-    pub default_gas_limit: Option<u64>,
-    /// router contract for fee swap
-    pub swap_router_contract: String,
-    /// converter contract for convert token
-    pub converter_contract: String,
-    // entrypoint for handling swap and post actions like IBC transfer to remote
-    pub osor_entrypoint_contract: String,
-    // token factory proxy address
-    pub token_factory_addr: Addr,
-}
+pub struct MigrateMsg {}
 
 #[cw_serde]
 pub enum ExecuteMsg {
