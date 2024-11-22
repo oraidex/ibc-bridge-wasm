@@ -28,7 +28,7 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::state::{
-    get_key_ics20_ibc_denom, increase_channel_balance, reduce_channel_balance, Config,
+    get_key_ics20_ibc_denom, increase_channel_balance, reduce_channel_balance, Config, ADMIN,
     CHANNEL_REVERSE_STATE, CONFIG, RELAYER_FEE, REPLY_ARGS, TOKEN_FEE,
 };
 use cw20::{Cw20CoinVerified, Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -2486,4 +2486,53 @@ pub fn test_get_follow_up_msg() {
         ),]
     );
     // case 4: call universal swap (todo)
+}
+
+#[test]
+fn test_withdraw_stuck_asset() {
+    let mut deps = mock_dependencies();
+    ADMIN
+        .set(deps.as_mut(), Some(Addr::unchecked("admin")))
+        .unwrap();
+
+    // case 1: unauthorized
+    let err = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr000", &[]),
+        ExecuteMsg::WithdrawAsset {
+            coin: Amount::Native(Coin {
+                denom: "orai".to_string(),
+                amount: Uint128::new(1000000),
+            }),
+            receiver: Some(Addr::unchecked("receiver")),
+        },
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Admin(AdminError::NotAdmin {}));
+
+    // case 2: success
+    let res = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("admin", &[]),
+        ExecuteMsg::WithdrawAsset {
+            coin: Amount::Native(Coin {
+                denom: "orai".to_string(),
+                amount: Uint128::new(1000000),
+            }),
+            receiver: Some(Addr::unchecked("receiver")),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
+            to_address: "receiver".to_string(),
+            amount: vec![Coin {
+                denom: "orai".to_string(),
+                amount: Uint128::new(1000000)
+            }]
+        }))]
+    );
 }

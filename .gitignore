@@ -10,3 +10,4 @@ tests/test-data.json
 
 .scannerwork/
 clippy-report.json
+.DS_Store

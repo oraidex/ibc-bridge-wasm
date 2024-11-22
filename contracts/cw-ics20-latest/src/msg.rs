@@ -105,6 +105,10 @@ pub enum ExecuteMsg {
         args: Binary,
     },
     RegisterDenom(RegisterDenomMsg),
+    WithdrawAsset {
+        coin: Amount,
+        receiver: Option<Addr>,
+    },
 }
 
 #[cw_serde]
