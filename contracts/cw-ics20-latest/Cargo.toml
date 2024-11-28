@@ -1,6 +1,6 @@
 [package]
 name = "cw-ics20-latest"
-version = "1.0.8"
+version = "1.0.9"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>, Oraichain Labs"]
 edition = "2021"
 description = "IBC Enabled contracts that receives CW20 tokens and sends them over ICS20 to a remote chain"

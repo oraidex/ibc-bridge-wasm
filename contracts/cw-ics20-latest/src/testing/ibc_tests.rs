@@ -7,6 +7,7 @@ use cosmwasm_std::{
 use cosmwasm_testing_util::mock::MockContract;
 use cosmwasm_vm::testing::MockInstanceOptions;
 use cw20_ics20_msg::converter::ConverterController;
+use cw20_ics20_msg::helper::get_full_denom;
 use cw_controllers::AdminError;
 use oraiswap::asset::AssetInfo;
 use oraiswap::router::RouterController;
@@ -28,8 +29,8 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::state::{
-    get_key_ics20_ibc_denom, increase_channel_balance, reduce_channel_balance, Config, ADMIN,
-    CHANNEL_REVERSE_STATE, CONFIG, RELAYER_FEE, REPLY_ARGS, TOKEN_FEE,
+    get_key_ics20_ibc_denom, ics20_denoms, increase_channel_balance, reduce_channel_balance,
+    Config, ADMIN, CHANNEL_REVERSE_STATE, CONFIG, RELAYER_FEE, REPLY_ARGS, TOKEN_FEE,
 };
 use cw20::{Cw20CoinVerified, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_ics20_msg::amount::{convert_remote_to_local, Amount};
@@ -41,7 +42,7 @@ use crate::contract::{
 };
 use crate::msg::{
     AllowMsg, ChannelResponse, ConfigResponse, ExecuteMsg, InitMsg, ListChannelsResponse,
-    ListMappingResponse, PairQuery, QueryMsg,
+    ListMappingResponse, PairQuery, QueryMsg, RegisterDenomMsg,
 };
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{coins, to_json_vec};
@@ -236,7 +237,7 @@ fn send_native_from_remote_mapping_not_found() {
         &["channel-1", "channel-7", send_channel],
         &[(cw20_addr, gas_limit)],
     );
-
+    let config = CONFIG.load(deps.as_ref().storage).unwrap();
     // prepare some mock packets
     let recv_packet =
         mock_receive_packet_remote_to_local(send_channel, 876543210, cw20_denom, custom_addr, None);
@@ -244,14 +245,46 @@ fn send_native_from_remote_mapping_not_found() {
     // we can receive this denom, channel balance should increase
     let msg = IbcPacketReceiveMsg::new(recv_packet.clone(), relayer);
     let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
-    // assert_eq!(res, StdError)
+    println!("res.messages: {:?}", res.messages[0].msg);
     assert_eq!(
-        res.attributes
-            .into_iter()
-            .find(|attr| attr.key.eq("error"))
-            .unwrap()
-            .value,
-        "You can only send native tokens that has a map to the corresponding asset info"
+        res.messages[0].msg,
+        wasm_execute(
+            config.token_factory_addr.clone(),
+            &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
+                subdenom: String::from("cw20:token-addr"),
+                metadata: None
+            }),
+            vec![]
+        )
+        .unwrap()
+        .into()
+    );
+    execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("cosmos2contract", &[]),
+        ExecuteMsg::RegisterDenom(RegisterDenomMsg {
+            subdenom: String::from("cw20:token-addr"),
+            metadata: None,
+        }),
+    )
+    .unwrap();
+    let pair_mapping = ics20_denoms()
+        .load(
+            deps.as_ref().storage,
+            "wasm.cosmos2contract/channel-9/cw20:token-addr",
+        )
+        .unwrap();
+    assert_eq!(
+        pair_mapping,
+        MappingMetadata {
+            asset_info: AssetInfo::NativeToken {
+                denom: get_full_denom(config.token_factory_addr.to_string(), cw20_denom.into()),
+            },
+            remote_decimals: 1,
+            asset_info_decimals: 1,
+            is_mint_burn: true
+        }
     );
 }
 

@@ -49,6 +49,10 @@ pub fn to_orai_bridge_address(address: &str) -> StdResult<String> {
     })
 }
 
+pub fn get_full_denom(factory_contract: String, subdenom: String) -> String {
+    format!("factory/{}/{}", factory_contract, subdenom)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::helper::{get_prefix_decode_bech32, to_orai_bridge_address};
