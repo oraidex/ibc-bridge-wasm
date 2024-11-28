@@ -2,12 +2,12 @@ use std::ops::Mul;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, wasm_execute, Api, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, Ibc3ChannelOpenResponse, IbcBasicResponse, IbcChannel, IbcChannelCloseMsg,
-    IbcChannelConnectMsg, IbcChannelOpenMsg, IbcEndpoint, IbcMsg, IbcOrder, IbcPacket,
-    IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, IbcTimeout,
-    Order, QuerierWrapper, Reply, Response, StdError, StdResult, Storage, SubMsg, SubMsgResult,
-    Uint128,
+    attr, entry_point, from_json, to_json_binary, wasm_execute, Api, Binary, Coin, CosmosMsg,
+    Decimal, Deps, DepsMut, Env, Ibc3ChannelOpenResponse, IbcBasicResponse, IbcChannel,
+    IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcEndpoint, IbcMsg, IbcOrder,
+    IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
+    IbcTimeout, Order, QuerierWrapper, Reply, Response, StdError, StdResult, Storage, SubMsg,
+    SubMsgResult, Uint128,
 };
 
 use cw20_ics20_msg::helper::{
@@ -353,7 +353,7 @@ fn handle_ibc_packet_receive_native_remote_chain(
                         subdenom: denom.into(),
                         metadata: None,
                     }),
-                    vec![],
+                    vec![Coin::new(1, "orai")],
                 )?
                 .into(),
             );
