@@ -254,7 +254,7 @@ fn send_native_from_remote_mapping_not_found() {
                 subdenom: String::from("cw20:token-addr"),
                 metadata: None
             }),
-            vec![]
+            vec![Coin::new(1u128.into(), "orai")]
         )
         .unwrap()
         .into()
