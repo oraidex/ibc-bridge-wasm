@@ -348,7 +348,7 @@ fn handle_ibc_packet_receive_native_remote_chain(
             // push a register denom msg to the contract
             cosmos_msgs.push(
                 wasm_execute(
-                    config.token_factory_addr.to_string(),
+                    env.contract.address.to_string(),
                     &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
                         subdenom: denom.into(),
                         metadata: None,

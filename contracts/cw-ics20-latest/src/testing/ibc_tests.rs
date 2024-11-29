@@ -249,7 +249,7 @@ fn send_native_from_remote_mapping_not_found() {
     assert_eq!(
         res.messages[0].msg,
         wasm_execute(
-            config.token_factory_addr.clone(),
+            "cosmos2contract",
             &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
                 subdenom: String::from("cw20:token-addr"),
                 metadata: None
