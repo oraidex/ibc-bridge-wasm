@@ -11,6 +11,7 @@ use cw20_ics20_msg::helper::get_full_denom;
 use cw_controllers::AdminError;
 use oraiswap::asset::AssetInfo;
 use oraiswap::router::RouterController;
+use token_bindings::Metadata;
 
 use crate::ibc::{
     convert_remote_denom_to_evm_prefix, deduct_fee, deduct_relayer_fee, deduct_token_fee,
@@ -231,7 +232,7 @@ fn send_native_from_remote_mapping_not_found() {
     let send_channel = "channel-9";
     let cw20_addr = "token-addr";
     let custom_addr = "custom-addr";
-    let cw20_denom = "cw20:token-addr";
+    let cw20_denom = "oraib0xcw20:token-addr";
     let gas_limit = 1234567;
     let mut deps = setup(
         &["channel-1", "channel-7", send_channel],
@@ -242,17 +243,26 @@ fn send_native_from_remote_mapping_not_found() {
     let recv_packet =
         mock_receive_packet_remote_to_local(send_channel, 876543210, cw20_denom, custom_addr, None);
 
+    let (prefix, denom) = cw20_denom.split_once("0x").unwrap();
+
     // we can receive this denom, channel balance should increase
     let msg = IbcPacketReceiveMsg::new(recv_packet.clone(), relayer);
     let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
-    println!("res.messages: {:?}", res.messages[0].msg);
+
     assert_eq!(
         res.messages[0].msg,
         wasm_execute(
             "cosmos2contract",
             &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
-                subdenom: String::from("cw20:token-addr"),
-                metadata: None
+                subdenom: String::from(denom),
+                metadata: Some(Metadata {
+                    description: Some(prefix.into()),
+                    denom_units: vec![],
+                    base: None,
+                    display: None,
+                    name: None,
+                    symbol: None
+                })
             }),
             vec![Coin::new(1u128.into(), "orai")]
         )
@@ -264,7 +274,7 @@ fn send_native_from_remote_mapping_not_found() {
         mock_env(),
         mock_info("cosmos2contract", &[]),
         ExecuteMsg::RegisterDenom(RegisterDenomMsg {
-            subdenom: String::from("cw20:token-addr"),
+            subdenom: String::from(denom),
             metadata: None,
         }),
     )
@@ -279,7 +289,7 @@ fn send_native_from_remote_mapping_not_found() {
         pair_mapping,
         MappingMetadata {
             asset_info: AssetInfo::NativeToken {
-                denom: get_full_denom(config.token_factory_addr.to_string(), cw20_denom.into()),
+                denom: get_full_denom(config.token_factory_addr.to_string(), denom.into()),
             },
             remote_decimals: 1,
             asset_info_decimals: 1,

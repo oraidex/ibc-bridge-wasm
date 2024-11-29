@@ -17,6 +17,7 @@ use cw_storage_plus::Map;
 use oraiswap::asset::AssetInfo;
 use oraiswap::router::{RouterController, SwapOperation};
 use skip::entry_point::ExecuteMsg as EntryPointExecuteMsg;
+use token_bindings::Metadata;
 
 use crate::contract::build_mint_mapping_msg;
 use crate::error::{ContractError, Never};
@@ -338,7 +339,12 @@ fn handle_ibc_packet_receive_native_remote_chain(
         ("success", "true"),
         ("relayer", relayer),
     ];
-
+    let (prefix, denom) =
+        denom
+            .split_once("0x")
+            .ok_or(ContractError::Std(StdError::GenericErr {
+                msg: String::from("Can not parse denom"),
+            }))?;
     // key in form transfer/channel-0/foo
     let ibc_denom = get_key_ics20_ibc_denom(&packet.dest.port_id, &packet.dest.channel_id, denom);
 
@@ -351,7 +357,14 @@ fn handle_ibc_packet_receive_native_remote_chain(
                     env.contract.address.to_string(),
                     &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
                         subdenom: denom.into(),
-                        metadata: None,
+                        metadata: Some(Metadata {
+                            description: Some(prefix.into()),
+                            denom_units: vec![],
+                            base: None,
+                            display: None,
+                            name: None,
+                            symbol: None,
+                        }),
                     }),
                     vec![Coin::new(1, "orai")],
                 )?
