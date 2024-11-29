@@ -357,14 +357,7 @@ fn handle_ibc_packet_receive_native_remote_chain(
                     env.contract.address.to_string(),
                     &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
                         subdenom: denom.into(),
-                        metadata: Some(Metadata {
-                            description: Some(prefix.into()),
-                            denom_units: vec![],
-                            base: None,
-                            display: None,
-                            name: None,
-                            symbol: None,
-                        }),
+                        metadata: None,
                     }),
                     vec![Coin::new(1, "orai")],
                 )?

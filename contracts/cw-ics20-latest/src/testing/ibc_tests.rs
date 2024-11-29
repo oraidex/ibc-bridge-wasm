@@ -255,14 +255,7 @@ fn send_native_from_remote_mapping_not_found() {
             "cosmos2contract",
             &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
                 subdenom: String::from(denom),
-                metadata: Some(Metadata {
-                    description: Some(prefix.into()),
-                    denom_units: vec![],
-                    base: None,
-                    display: None,
-                    name: None,
-                    symbol: None
-                })
+                metadata: None
             }),
             vec![Coin::new(1u128.into(), "orai")]
         )
