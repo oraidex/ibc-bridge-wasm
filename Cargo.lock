@@ -167,6 +167,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56953345e39537a3e18bdaeba4cb0c58a78c1f61f361dc0fa7c5c7340ae87c5f"
 
 [[package]]
+name = "bs58"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
+dependencies = [
+ "tinyvec",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -591,6 +600,7 @@ name = "cw-ics20-latest"
 version = "1.0.9"
 dependencies = [
  "anybuf",
+ "bs58",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-testing-util",
@@ -601,6 +611,7 @@ dependencies = [
  "cw2 1.1.2",
  "cw20 1.1.2",
  "cw20-ics20-msg 0.0.3",
+ "hex",
  "oraiswap 0.2.0 (git+https://github.com/oraichain/oraiswap.git?rev=f4b0cc2f96e87938c6f203ac0a82012bcfe4b17b)",
  "sha256",
  "skip",

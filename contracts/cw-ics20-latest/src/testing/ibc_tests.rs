@@ -232,7 +232,7 @@ fn send_native_from_remote_mapping_not_found() {
     let send_channel = "channel-9";
     let cw20_addr = "token-addr";
     let custom_addr = "custom-addr";
-    let cw20_denom = "oraib0xcw20:token-addr";
+    let cw20_denom = "oraib0x10407cEa4B614AB11bd05B326193d84ec20851f6";
     let gas_limit = 1234567;
     let mut deps = setup(
         &["channel-1", "channel-7", send_channel],
@@ -244,7 +244,15 @@ fn send_native_from_remote_mapping_not_found() {
         mock_receive_packet_remote_to_local(send_channel, 876543210, cw20_denom, custom_addr, None);
 
     let (prefix, denom) = cw20_denom.split_once("0x").unwrap();
-
+    let bytes_address = hex::decode(denom)
+        .map_err(|_| {
+            ContractError::Std(StdError::GenericErr {
+                msg: String::from("Invalid hex address"),
+            })
+        })
+        .unwrap();
+    let base58_address = bs58::encode(bytes_address).into_string();
+    let base58_denom = format!("{}0x{}", prefix, base58_address);
     // we can receive this denom, channel balance should increase
     let msg = IbcPacketReceiveMsg::new(recv_packet.clone(), relayer);
     let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
@@ -254,7 +262,7 @@ fn send_native_from_remote_mapping_not_found() {
         wasm_execute(
             "cosmos2contract",
             &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
-                subdenom: String::from(denom),
+                subdenom: String::from(base58_denom.clone()),
                 metadata: None
             }),
             vec![Coin::new(1u128.into(), "orai")]
@@ -275,14 +283,14 @@ fn send_native_from_remote_mapping_not_found() {
     let pair_mapping = ics20_denoms()
         .load(
             deps.as_ref().storage,
-            "wasm.cosmos2contract/channel-9/cw20:token-addr",
+            "wasm.cosmos2contract/channel-9/oraib0x10407cEa4B614AB11bd05B326193d84ec20851f6",
         )
         .unwrap();
     assert_eq!(
         pair_mapping,
         MappingMetadata {
             asset_info: AssetInfo::NativeToken {
-                denom: get_full_denom(config.token_factory_addr.to_string(), denom.into()),
+                denom: get_full_denom(config.token_factory_addr.to_string(), base58_denom),
             },
             remote_decimals: 1,
             asset_info_decimals: 1,

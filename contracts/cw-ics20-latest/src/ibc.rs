@@ -330,7 +330,7 @@ fn handle_ibc_packet_receive_native_remote_chain(
     let config = CONFIG.load(storage)?;
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     let ibc_packet_amount = msg.amount.to_string();
-    let attributes = vec![
+    let attributes: Vec<(&str, &str)> = vec![
         ("action", "receive_native"),
         ("sender", &msg.sender),
         ("receiver", &msg.receiver),
@@ -339,24 +339,32 @@ fn handle_ibc_packet_receive_native_remote_chain(
         ("success", "true"),
         ("relayer", relayer),
     ];
-    let (prefix, denom) =
-        denom
-            .split_once("0x")
-            .ok_or(ContractError::Std(StdError::GenericErr {
-                msg: String::from("Can not parse denom"),
-            }))?;
+
     // key in form transfer/channel-0/foo
     let ibc_denom = get_key_ics20_ibc_denom(&packet.dest.port_id, &packet.dest.channel_id, denom);
-
     let pair_mapping = match ics20_denoms().load(storage, &ibc_denom) {
         Ok(pair_mapping) => pair_mapping,
         Err(_) => {
+            let (prefix, denom) =
+                denom
+                    .split_once("0x")
+                    .ok_or(ContractError::Std(StdError::GenericErr {
+                        msg: String::from("Cannot parse denom"),
+                    }))?;
+
+            let bytes_address = hex::decode(denom).map_err(|_| {
+                ContractError::Std(StdError::GenericErr {
+                    msg: String::from("Invalid hex address"),
+                })
+            })?;
+            let base58_address = bs58::encode(bytes_address).into_string();
+            let base58_denom = format!("{}0x{}", prefix, base58_address);
             // push a register denom msg to the contract
             cosmos_msgs.push(
                 wasm_execute(
                     env.contract.address.to_string(),
                     &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
-                        subdenom: denom.into(),
+                        subdenom: base58_denom.clone(),
                         metadata: None,
                     }),
                     vec![Coin::new(1, "orai")],
@@ -365,7 +373,7 @@ fn handle_ibc_packet_receive_native_remote_chain(
             );
             let new_metadata = MappingMetadata {
                 asset_info: AssetInfo::NativeToken {
-                    denom: get_full_denom(config.token_factory_addr.to_string(), denom.to_string()),
+                    denom: get_full_denom(config.token_factory_addr.to_string(), base58_denom),
                 },
                 remote_decimals: 1, // Since we don't know metadata of remote_chain token, we set it to 1 in both decimals
                 asset_info_decimals: 1,
