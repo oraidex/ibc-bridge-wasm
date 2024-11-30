@@ -7,9 +7,11 @@ use cosmwasm_std::{
 use cosmwasm_testing_util::mock::MockContract;
 use cosmwasm_vm::testing::MockInstanceOptions;
 use cw20_ics20_msg::converter::ConverterController;
+use cw20_ics20_msg::helper::get_full_denom;
 use cw_controllers::AdminError;
 use oraiswap::asset::AssetInfo;
 use oraiswap::router::RouterController;
+use token_bindings::Metadata;
 
 use crate::ibc::{
     convert_remote_denom_to_evm_prefix, deduct_fee, deduct_relayer_fee, deduct_token_fee,
@@ -28,8 +30,8 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::state::{
-    get_key_ics20_ibc_denom, increase_channel_balance, reduce_channel_balance, Config, ADMIN,
-    CHANNEL_REVERSE_STATE, CONFIG, RELAYER_FEE, REPLY_ARGS, TOKEN_FEE,
+    get_key_ics20_ibc_denom, ics20_denoms, increase_channel_balance, reduce_channel_balance,
+    Config, ADMIN, CHANNEL_REVERSE_STATE, CONFIG, RELAYER_FEE, REPLY_ARGS, TOKEN_FEE,
 };
 use cw20::{Cw20CoinVerified, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_ics20_msg::amount::{convert_remote_to_local, Amount};
@@ -41,7 +43,7 @@ use crate::contract::{
 };
 use crate::msg::{
     AllowMsg, ChannelResponse, ConfigResponse, ExecuteMsg, InitMsg, ListChannelsResponse,
-    ListMappingResponse, PairQuery, QueryMsg,
+    ListMappingResponse, PairQuery, QueryMsg, RegisterDenomMsg,
 };
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{coins, to_json_vec};
@@ -230,28 +232,70 @@ fn send_native_from_remote_mapping_not_found() {
     let send_channel = "channel-9";
     let cw20_addr = "token-addr";
     let custom_addr = "custom-addr";
-    let cw20_denom = "cw20:token-addr";
+    let cw20_denom = "oraib0x10407cEa4B614AB11bd05B326193d84ec20851f6";
     let gas_limit = 1234567;
     let mut deps = setup(
         &["channel-1", "channel-7", send_channel],
         &[(cw20_addr, gas_limit)],
     );
-
+    let config = CONFIG.load(deps.as_ref().storage).unwrap();
     // prepare some mock packets
     let recv_packet =
         mock_receive_packet_remote_to_local(send_channel, 876543210, cw20_denom, custom_addr, None);
 
+    let (prefix, denom) = cw20_denom.split_once("0x").unwrap();
+    let bytes_address = hex::decode(denom)
+        .map_err(|_| {
+            ContractError::Std(StdError::GenericErr {
+                msg: String::from("Invalid hex address"),
+            })
+        })
+        .unwrap();
+    let base58_address = bs58::encode(bytes_address).into_string();
+    let base58_denom = format!("{}0x{}", prefix, base58_address);
     // we can receive this denom, channel balance should increase
     let msg = IbcPacketReceiveMsg::new(recv_packet.clone(), relayer);
     let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
-    // assert_eq!(res, StdError)
+
     assert_eq!(
-        res.attributes
-            .into_iter()
-            .find(|attr| attr.key.eq("error"))
-            .unwrap()
-            .value,
-        "You can only send native tokens that has a map to the corresponding asset info"
+        res.messages[0].msg,
+        wasm_execute(
+            "cosmos2contract",
+            &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
+                subdenom: String::from(base58_denom.clone()),
+                metadata: None
+            }),
+            vec![Coin::new(1u128.into(), "orai")]
+        )
+        .unwrap()
+        .into()
+    );
+    execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("cosmos2contract", &[]),
+        ExecuteMsg::RegisterDenom(RegisterDenomMsg {
+            subdenom: String::from(denom),
+            metadata: None,
+        }),
+    )
+    .unwrap();
+    let pair_mapping = ics20_denoms()
+        .load(
+            deps.as_ref().storage,
+            "wasm.cosmos2contract/channel-9/oraib0x10407cEa4B614AB11bd05B326193d84ec20851f6",
+        )
+        .unwrap();
+    assert_eq!(
+        pair_mapping,
+        MappingMetadata {
+            asset_info: AssetInfo::NativeToken {
+                denom: get_full_denom(config.token_factory_addr.to_string(), base58_denom),
+            },
+            remote_decimals: 1,
+            asset_info_decimals: 1,
+            is_mint_burn: true
+        }
     );
 }
 

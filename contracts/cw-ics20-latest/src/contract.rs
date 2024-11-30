@@ -9,6 +9,7 @@ use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_ics20_msg::converter::ConverterController;
 use cw20_ics20_msg::helper::parse_ibc_wasm_port_id;
+use cw_controllers::AdminError;
 use cw_storage_plus::Bound;
 use oraiswap::asset::AssetInfo;
 use oraiswap::router::RouterController;
@@ -165,7 +166,7 @@ pub fn execute(
             orai_receiver,
             args,
         } => ibc_hooks_receive(deps, env, info, func, orai_receiver, args),
-        ExecuteMsg::RegisterDenom(msg) => register_denom(deps, info, msg),
+        ExecuteMsg::RegisterDenom(msg) => register_denom(deps, env, info, msg),
         ExecuteMsg::WithdrawAsset { coin, receiver } => {
             execute_withdraw_asset(deps, info, coin, receiver)
         }
@@ -201,10 +202,13 @@ fn execute_withdraw_asset(
 
 pub fn register_denom(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     msg: RegisterDenomMsg,
 ) -> Result<Response, ContractError> {
-    ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+    if !ADMIN.is_admin(deps.as_ref(), &info.sender)? && info.sender != env.contract.address {
+        return Err(ContractError::Admin(AdminError::NotAdmin {}));
+    };
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -840,7 +844,7 @@ pub fn execute_delete_mapping_pair(
 }
 
 #[entry_point]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     // we don't need to save anything if migrating from the same version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 

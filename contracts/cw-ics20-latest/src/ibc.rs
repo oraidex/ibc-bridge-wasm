@@ -2,32 +2,33 @@ use std::ops::Mul;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, wasm_execute, Api, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, Ibc3ChannelOpenResponse, IbcBasicResponse, IbcChannel, IbcChannelCloseMsg,
-    IbcChannelConnectMsg, IbcChannelOpenMsg, IbcEndpoint, IbcMsg, IbcOrder, IbcPacket,
-    IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, IbcTimeout,
-    Order, QuerierWrapper, Reply, Response, StdError, StdResult, Storage, SubMsg, SubMsgResult,
-    Uint128,
+    attr, entry_point, from_json, to_json_binary, wasm_execute, Api, Binary, Coin, CosmosMsg,
+    Decimal, Deps, DepsMut, Env, Ibc3ChannelOpenResponse, IbcBasicResponse, IbcChannel,
+    IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcEndpoint, IbcMsg, IbcOrder,
+    IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
+    IbcTimeout, Order, QuerierWrapper, Reply, Response, StdError, StdResult, Storage, SubMsg,
+    SubMsgResult, Uint128,
 };
 
 use cw20_ics20_msg::helper::{
-    denom_to_asset_info, get_prefix_decode_bech32, parse_asset_info_denom,
+    denom_to_asset_info, get_full_denom, get_prefix_decode_bech32, parse_asset_info_denom,
 };
 use cw_storage_plus::Map;
 use oraiswap::asset::AssetInfo;
 use oraiswap::router::{RouterController, SwapOperation};
 use skip::entry_point::ExecuteMsg as EntryPointExecuteMsg;
+use token_bindings::Metadata;
 
 use crate::contract::build_mint_mapping_msg;
 use crate::error::{ContractError, Never};
-use crate::msg::ExecuteMsg;
+use crate::msg::{ExecuteMsg, RegisterDenomMsg};
 use crate::state::{
     get_key_ics20_ibc_denom, ics20_denoms, undo_reduce_channel_balance, ALLOW_LIST, CHANNEL_INFO,
     CONFIG, RELAYER_FEE, TOKEN_FEE,
 };
 use cw20_ics20_msg::amount::{convert_remote_to_local, Amount};
 use cw20_ics20_msg::msg::FeeData;
-use cw20_ics20_msg::state::{ChannelInfo, Ratio};
+use cw20_ics20_msg::state::{ChannelInfo, MappingMetadata, Ratio};
 
 pub const ICS20_VERSION: &str = "ics20-1";
 pub const ICS20_ORDERING: IbcOrder = IbcOrder::Unordered;
@@ -329,7 +330,7 @@ fn handle_ibc_packet_receive_native_remote_chain(
     let config = CONFIG.load(storage)?;
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     let ibc_packet_amount = msg.amount.to_string();
-    let attributes = vec![
+    let attributes: Vec<(&str, &str)> = vec![
         ("action", "receive_native"),
         ("sender", &msg.sender),
         ("receiver", &msg.receiver),
@@ -341,9 +342,47 @@ fn handle_ibc_packet_receive_native_remote_chain(
 
     // key in form transfer/channel-0/foo
     let ibc_denom = get_key_ics20_ibc_denom(&packet.dest.port_id, &packet.dest.channel_id, denom);
-    let pair_mapping = ics20_denoms()
-        .load(storage, &ibc_denom)
-        .map_err(|_| ContractError::NotOnMappingList {})?;
+    let pair_mapping = match ics20_denoms().load(storage, &ibc_denom) {
+        Ok(pair_mapping) => pair_mapping,
+        Err(_) => {
+            let (prefix, denom) =
+                denom
+                    .split_once("0x")
+                    .ok_or(ContractError::Std(StdError::GenericErr {
+                        msg: String::from("Cannot parse denom"),
+                    }))?;
+
+            let bytes_address = hex::decode(denom).map_err(|_| {
+                ContractError::Std(StdError::GenericErr {
+                    msg: String::from("Invalid hex address"),
+                })
+            })?;
+            let base58_address = bs58::encode(bytes_address).into_string();
+            let base58_denom = format!("{}0x{}", prefix, base58_address);
+            // push a register denom msg to the contract
+            cosmos_msgs.push(
+                wasm_execute(
+                    env.contract.address.to_string(),
+                    &ExecuteMsg::RegisterDenom(RegisterDenomMsg {
+                        subdenom: base58_denom.clone(),
+                        metadata: None,
+                    }),
+                    vec![Coin::new(1, "orai")],
+                )?
+                .into(),
+            );
+            let new_metadata = MappingMetadata {
+                asset_info: AssetInfo::NativeToken {
+                    denom: get_full_denom(config.token_factory_addr.to_string(), base58_denom),
+                },
+                remote_decimals: 1, // Since we don't know metadata of remote_chain token, we set it to 1 in both decimals
+                asset_info_decimals: 1,
+                is_mint_burn: true, // Always mint burn if we don't know the metadata
+            };
+            ics20_denoms().save(storage, &ibc_denom, &new_metadata)?;
+            new_metadata
+        }
+    };
     let initial_receive_asset_info = pair_mapping.asset_info;
     let to_send = Amount::from_parts(
         parse_asset_info_denom(&initial_receive_asset_info),
