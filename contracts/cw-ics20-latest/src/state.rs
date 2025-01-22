@@ -1,3 +1,5 @@
+use std::array;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
 use cw20_ics20_msg::amount::Amount;
@@ -50,11 +52,12 @@ pub const RELAYER_FEE: Map<&str, Uint128> = Map::new("relayer_fee");
 pub const REFUND_INFO_LIST: Item<Vec<RefundInfo>> = Item::new("refund_info_list");
 
 // store temp refund info, will be remove when store to REFUND_INFO_LIST
-pub const TEMP_REFUND_INFO: Item<RefundInfo> = Item::new("temp_refund_info");
+pub const TEMP_REFUND_INFO: Item<Option<RefundInfo>> = Item::new("temp_refund_info");
 
 // refund info store refund information when packet failed
+#[cw_serde]
 pub struct RefundInfo {
-    pub receiver: Addr,
+    pub receiver: String,
     pub amount: Amount
 }
 
