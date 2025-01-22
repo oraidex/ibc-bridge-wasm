@@ -123,7 +123,7 @@ pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, Contrac
     // }
     match reply.result {
         SubMsgResult::Err(err) => handle_reply_error(deps, err, reply.id),
-        SubMsgResult::Ok(_) => handle_reply_success(reply.id),
+        SubMsgResult::Ok(_) => handle_reply_success(deps, reply.id),
     }
 }
 
@@ -162,14 +162,31 @@ fn handle_reply_error(deps: DepsMut, err: String, id: u64) -> Result<Response, C
                 .set_data(ack_success())
                 .add_attribute("action", "universal_swap_error")
                 .add_attribute("error_trying_to_call_entrypoint_for_universal_swap", err))
-        }
+        },
         
         _ => Err(ContractError::UnknownReplyId { id: id }),
     }
 }
 
-fn handle_reply_success(id: u64) -> Result<Response, ContractError> {
-    Ok(Response::default())
+fn handle_reply_success(deps: DepsMut, id: u64) -> Result<Response, ContractError> {
+    match id {
+        NATIVE_RECEIVE_ID => {
+            // in this case we simply remove temp refund info
+            if let Some(_packet_sent) = TEMP_REFUND_INFO.load(deps.storage).unwrap() {
+                // remove relay packet store
+                TEMP_REFUND_INFO.save(deps.storage, &None)?;
+            }
+            
+            Ok(Response::default())
+        },
+
+        REFUND_FAILURE_ID => {
+            // TODO: implement for this case
+            Ok(Response::default())
+        },
+
+        _ => Err(ContractError::UnknownReplyId { id: id }),
+    }
 }
 
 #[entry_point]
