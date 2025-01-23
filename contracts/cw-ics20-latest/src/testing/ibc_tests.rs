@@ -2605,6 +2605,107 @@ pub fn test_get_follow_up_msg() {
         ),]
     );
 
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().unwrap();
+    assert_eq!(
+        temp_refund_info,
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    );
+
+    // we check error case
+    let reply_msg: Reply = Reply {
+        id: NATIVE_RECEIVE_ID,
+        result: SubMsgResult::Err(String::from("error")),
+    };
+
+
+    let res = reply(deps_mut.branch(), env.clone(), reply_msg).unwrap();
+    assert_eq!(
+        res.attributes[0],
+        Attribute {
+            key: "action".to_string(),
+            value: "native_receive_id".to_string(),
+        }    
+    );
+
+    // after reply, this state should be None cause we already remove the data
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().is_none();
+    assert_eq!(
+        temp_refund_info,
+        true,
+    );
+
+    // reply error => add refund lists
+    let refund_lists = REFUND_INFO_LIST.load(deps_mut.storage).unwrap();
+    assert_eq!(
+        refund_lists.len(),
+        1,
+    );
+    assert_eq!(
+        refund_lists[0],
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    );
+
+    // we clear this lists for next test
+    REFUND_INFO_LIST.update(deps_mut.storage, |mut lists| -> StdResult<_> {
+        lists.clear();
+        StdResult::Ok(lists)
+    }).unwrap();
+
+    // check success case
+    let _msgs = get_follow_up_msgs(
+        deps_mut.storage,
+        deps_mut.api,
+        orai_receiver.clone(),
+        to_send.clone(),
+        Some("".to_string()),
+    )
+    .unwrap();
+
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().unwrap();
+    assert_eq!(
+        temp_refund_info,
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    );
+
+    let bytes = vec![];
+    // success reply
+    let reply_msg: Reply = Reply {
+        id: NATIVE_RECEIVE_ID,
+        result: SubMsgResult::Ok(SubMsgResponse{
+            events: vec![],
+            data: Some(Binary(bytes))
+        }),
+    };
+
+    let res = reply(deps_mut.branch(), env.clone(), reply_msg).unwrap();
+    assert_eq!(
+        res,
+        Response::default(),             
+    );
+
+    // after reply, this state should be None cause we already remove the data
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().is_none();
+    assert_eq!(
+        temp_refund_info,
+        true,
+    );
+
+    // this is success case so we don't refund => refund lists should be empty
+    let refund_lists = REFUND_INFO_LIST.load(deps_mut.storage).unwrap();
+    assert_eq!(
+        refund_lists.len(),
+        0,
+    );
+
     // case 3: memo is orai_address => send_only
     let msgs = get_follow_up_msgs(
         deps_mut.storage,
@@ -2628,6 +2729,107 @@ pub fn test_get_follow_up_msg() {
             .unwrap(),
             NATIVE_RECEIVE_ID
         ),]
+    );
+
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().unwrap();
+    assert_eq!(
+        temp_refund_info,
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    );
+
+    // we check error case
+    let reply_msg: Reply = Reply {
+        id: NATIVE_RECEIVE_ID,
+        result: SubMsgResult::Err(String::from("error")),
+    };
+
+
+    let res = reply(deps_mut.branch(), env.clone(), reply_msg).unwrap();
+    assert_eq!(
+        res.attributes[0],
+        Attribute {
+            key: "action".to_string(),
+            value: "native_receive_id".to_string(),
+        }    
+    );
+
+    // after reply, this state should be None cause we already remove the data
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().is_none();
+    assert_eq!(
+        temp_refund_info,
+        true,
+    );
+
+    // reply error => add refund lists
+    let refund_lists = REFUND_INFO_LIST.load(deps_mut.storage).unwrap();
+    assert_eq!(
+        refund_lists.len(),
+        1,
+    );
+    assert_eq!(
+        refund_lists[0],
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    );
+
+    // we clear this lists for next test
+    REFUND_INFO_LIST.update(deps_mut.storage, |mut lists| -> StdResult<_> {
+        lists.clear();
+        StdResult::Ok(lists)
+    }).unwrap();
+
+    // check success case
+    let _msgs = get_follow_up_msgs(
+        deps_mut.storage,
+        deps_mut.api,
+        orai_receiver.clone(),
+        to_send.clone(),
+        Some(orai_receiver.to_string()),
+    )
+    .unwrap();
+
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().unwrap();
+    assert_eq!(
+        temp_refund_info,
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    );
+
+    let bytes = vec![];
+    // success reply
+    let reply_msg: Reply = Reply {
+        id: NATIVE_RECEIVE_ID,
+        result: SubMsgResult::Ok(SubMsgResponse{
+            events: vec![],
+            data: Some(Binary(bytes))
+        }),
+    };
+
+    let res = reply(deps_mut.branch(), env.clone(), reply_msg).unwrap();
+    assert_eq!(
+        res,
+        Response::default(),             
+    );
+
+    // after reply, this state should be None cause we already remove the data
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().is_none();
+    assert_eq!(
+        temp_refund_info,
+        true,
+    );
+
+    // this is success case so we don't refund => refund lists should be empty
+    let refund_lists = REFUND_INFO_LIST.load(deps_mut.storage).unwrap();
+    assert_eq!(
+        refund_lists.len(),
+        0,
     );
     // case 4: call universal swap (todo)
 }
