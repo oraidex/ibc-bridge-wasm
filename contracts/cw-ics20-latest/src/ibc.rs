@@ -23,7 +23,7 @@ use crate::contract::build_mint_mapping_msg;
 use crate::error::{ContractError, Never};
 use crate::msg::{ExecuteMsg, RegisterDenomMsg};
 use crate::state::{
-    get_key_ics20_ibc_denom, ics20_denoms, undo_reduce_channel_balance, RefundInfo, ALLOW_LIST, CHANNEL_INFO, CONFIG, REFUND_INFO_LIST, RELAYER_FEE, TEMP_REFUND_INFO, TOKEN_FEE
+    get_key_ics20_ibc_denom, ics20_denoms, undo_reduce_channel_balance, RefundInfo, ALLOW_LIST, CHANNEL_INFO, CONFIG, REFUND_INFO_LIST, RELAYER_FEE, REFUND_INFO, TOKEN_FEE
 };
 use cw20_ics20_msg::amount::{convert_remote_to_local, Amount};
 use cw20_ics20_msg::msg::FeeData;
@@ -131,9 +131,9 @@ fn handle_reply_error(deps: DepsMut, err: String, id: u64) -> Result<Response, C
     match id {
         NATIVE_RECEIVE_ID => {
             // add packet to refund array
-            if let Some(packet_sent) = TEMP_REFUND_INFO.load(deps.storage).unwrap() {
+            if let Some(packet_sent) = REFUND_INFO.load(deps.storage).unwrap() {
                 // remove relay packet store
-                TEMP_REFUND_INFO.save(deps.storage, &None)?;
+                REFUND_INFO.save(deps.storage, &None)?;
                 // store packet into refund list
                 REFUND_INFO_LIST.update(deps.storage, |mut lists| -> StdResult<_> {
                     lists.push(packet_sent);
@@ -149,9 +149,9 @@ fn handle_reply_error(deps: DepsMut, err: String, id: u64) -> Result<Response, C
 
         REFUND_FAILURE_ID => {
             // add packet to refund array
-            if let Some(packet_sent) = TEMP_REFUND_INFO.load(deps.storage).unwrap() {
+            if let Some(packet_sent) = REFUND_INFO.load(deps.storage).unwrap() {
                 // remove relay packet store
-                TEMP_REFUND_INFO.save(deps.storage, &None)?;
+                REFUND_INFO.save(deps.storage, &None)?;
 
                 // store packet into refund list
                 REFUND_INFO_LIST.update(deps.storage, |mut lists| -> StdResult<_> {
@@ -183,9 +183,9 @@ fn handle_reply_success(deps: DepsMut, id: u64) -> Result<Response, ContractErro
     match id {
         NATIVE_RECEIVE_ID => {
             // in this case we simply remove temp refund info
-            if let Some(_packet_sent) = TEMP_REFUND_INFO.load(deps.storage).unwrap() {
+            if let Some(_packet_sent) = REFUND_INFO.load(deps.storage).unwrap() {
                 // remove relay packet store
-                TEMP_REFUND_INFO.save(deps.storage, &None)?;
+                REFUND_INFO.save(deps.storage, &None)?;
             }
             
             Ok(Response::default())
@@ -193,13 +193,17 @@ fn handle_reply_success(deps: DepsMut, id: u64) -> Result<Response, ContractErro
 
         REFUND_FAILURE_ID => {
             // in this case we simply remove temp refund info
-            if let Some(_packet_sent) = TEMP_REFUND_INFO.load(deps.storage).unwrap() {
+            if let Some(_packet_sent) = REFUND_INFO.load(deps.storage).unwrap() {
                 // remove relay packet store
-                TEMP_REFUND_INFO.save(deps.storage, &None)?;
+                REFUND_INFO.save(deps.storage, &None)?;
             }
 
             Ok(Response::default())
         },
+
+        UNIVERSAL_SWAP_ERROR_ID => {
+            Ok(Response::default())
+        }
 
         _ => Err(ContractError::UnknownReplyId { id: id }),
     }
@@ -562,7 +566,7 @@ pub fn get_follow_up_msgs(
                 receiver: orai_receiver,
                 amount: to_send,
             };
-            TEMP_REFUND_INFO.save(storage, &Some(refund_info))?;
+            REFUND_INFO.save(storage, &Some(refund_info))?;
         } else {
             let swap_then_post_action_msg = to_send.send_amount(
                 config.osor_entrypoint_contract,
@@ -582,7 +586,7 @@ pub fn get_follow_up_msgs(
             receiver: orai_receiver,
             amount: to_send,
         };
-        TEMP_REFUND_INFO.save(storage, &Some(refund_info))?;
+        REFUND_INFO.save(storage, &Some(refund_info))?;
     }
     Ok(sub_msgs)
 }
@@ -904,7 +908,7 @@ pub fn handle_packet_refund(
         ),
         receiver: packet_sender.to_string()
     };
-    TEMP_REFUND_INFO.save(storage, &Some(temp_refund_info))?;
+    REFUND_INFO.save(storage, &Some(temp_refund_info))?;
 
     // used submsg here & reply on error. This means that if the refund process fails => tokens will be locked in this IBC Wasm contract. We will manually handle that case. No retry
     // similar event messages like ibctransfer module
