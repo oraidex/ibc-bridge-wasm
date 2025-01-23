@@ -1,7 +1,7 @@
 use std::ops::Sub;
 
 use cosmwasm_std::{
-    wasm_execute, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Event, IbcChannelConnectMsg, IbcChannelOpenMsg, Reply, StdError, SubMsgResponse, SubMsgResult
+    wasm_execute, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Event, IbcChannelConnectMsg, IbcChannelOpenMsg, Reply, StdError, StdResult, SubMsgResponse, SubMsgResult
 };
 use cosmwasm_testing_util::mock::MockContract;
 use cosmwasm_vm::testing::MockInstanceOptions;
@@ -2519,6 +2519,12 @@ pub fn test_get_follow_up_msg() {
             amount: to_send.clone(),
         }
     );
+
+    // we clear this lists for next test
+    REFUND_INFO_LIST.update(deps_mut.storage, |mut lists| -> StdResult<_> {
+        lists.clear();
+        StdResult::Ok(lists)
+    }).unwrap();
 
     // TODO: check success case
 
