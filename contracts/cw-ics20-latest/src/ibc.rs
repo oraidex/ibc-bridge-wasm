@@ -149,6 +149,18 @@ fn handle_reply_error(deps: DepsMut, err: String, id: u64) -> Result<Response, C
         },
 
         REFUND_FAILURE_ID => {
+            // add packet to refund array
+            if let Some(packet_sent) = TEMP_REFUND_INFO.load(deps.storage).unwrap() {
+                // remove relay packet store
+                TEMP_REFUND_INFO.save(deps.storage, &None)?;
+
+                // store packet into refund list
+                REFUND_INFO_LIST.update(deps.storage, |mut lists| -> StdResult<_> {
+                    lists.push(packet_sent);
+                    StdResult::Ok(lists)
+                })?; 
+            }
+
             Ok(Response::new()
                 .set_data(ack_success())
                 .add_attribute("action", "refund_failure_id")
@@ -181,7 +193,12 @@ fn handle_reply_success(deps: DepsMut, id: u64) -> Result<Response, ContractErro
         },
 
         REFUND_FAILURE_ID => {
-            // TODO: implement for this case
+            // in this case we simply remove temp refund info
+            if let Some(_packet_sent) = TEMP_REFUND_INFO.load(deps.storage).unwrap() {
+                // remove relay packet store
+                TEMP_REFUND_INFO.save(deps.storage, &None)?;
+            }
+
             Ok(Response::default())
         },
 
@@ -857,8 +874,9 @@ pub fn handle_packet_refund(
     )?;
 
     // check if mint_burn mechanism, then mint token for packet sender, if not, send from contract
+    let denom = parse_asset_info_denom(&pair_mapping.asset_info);
     let send_amount_msg = Amount::from_parts(
-        parse_asset_info_denom(&pair_mapping.asset_info),
+        denom.clone(),
         local_amount,
     )
     .send_amount(packet_sender.to_string(), None);
@@ -879,9 +897,19 @@ pub fn handle_packet_refund(
         None => send_amount_msg,
     };
 
+    // save temp refund info, we use this info in handle reply enpoint
+    let temp_refund_info = RefundInfo{
+        amount:  Amount::from_parts(
+            denom,
+            local_amount,
+        ),
+        receiver: packet_sender.to_string()
+    };
+    TEMP_REFUND_INFO.save(storage, &Some(temp_refund_info))?;
+
     // used submsg here & reply on error. This means that if the refund process fails => tokens will be locked in this IBC Wasm contract. We will manually handle that case. No retry
     // similar event messages like ibctransfer module
-    Ok(SubMsg::reply_on_error(cosmos_msg, REFUND_FAILURE_ID))
+    Ok(SubMsg::reply_always(cosmos_msg, REFUND_FAILURE_ID))
 }
 
 pub fn build_ibc_send_packet(
