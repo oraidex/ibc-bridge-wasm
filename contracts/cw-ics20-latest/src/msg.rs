@@ -161,6 +161,9 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
+pub struct SudoMsg{}
+
+#[cw_serde]
 pub struct ListChannelsResponse {
     pub channels: Vec<ChannelInfo>,
 }
