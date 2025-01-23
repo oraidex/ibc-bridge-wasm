@@ -1672,7 +1672,7 @@ fn test_handle_packet_refund() {
         handle_packet_refund(deps.as_mut().storage, sender, &mapping_denom, amount, false).unwrap();
     assert_eq!(
         result,
-        SubMsg::reply_on_error(
+        SubMsg::reply_always(
             CosmosMsg::Bank(BankMsg::Send {
                 to_address: sender.to_string(),
                 amount: coins(amount.u128(), "orai")
@@ -1694,7 +1694,7 @@ fn test_handle_packet_refund() {
         handle_packet_refund(deps.as_mut().storage, sender, &mapping_denom, amount, true).unwrap();
     assert_eq!(
         result,
-        SubMsg::reply_on_error(
+        SubMsg::reply_always(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: "token0".to_string(),
                 msg: to_json_binary(&Cw20ExecuteMsg::Mint {
