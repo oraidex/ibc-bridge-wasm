@@ -134,7 +134,6 @@ fn handle_reply_error(deps: DepsMut, err: String, id: u64) -> Result<Response, C
             if let Some(packet_sent) = TEMP_REFUND_INFO.load(deps.storage).unwrap() {
                 // remove relay packet store
                 TEMP_REFUND_INFO.save(deps.storage, &None)?;
-
                 // store packet into refund list
                 REFUND_INFO_LIST.update(deps.storage, |mut lists| -> StdResult<_> {
                     lists.push(packet_sent);

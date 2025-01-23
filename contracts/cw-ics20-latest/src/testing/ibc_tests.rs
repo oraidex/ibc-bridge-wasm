@@ -1,8 +1,7 @@
 use std::ops::Sub;
 
 use cosmwasm_std::{
-    wasm_execute, Addr, BankMsg, Coin, CosmosMsg, Decimal, IbcChannelConnectMsg, IbcChannelOpenMsg,
-    StdError,
+    wasm_execute, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Event, IbcChannelConnectMsg, IbcChannelOpenMsg, Reply, StdError, SubMsgResponse, SubMsgResult
 };
 use cosmwasm_testing_util::mock::MockContract;
 use cosmwasm_vm::testing::MockInstanceOptions;
@@ -14,12 +13,7 @@ use oraiswap::router::RouterController;
 use token_bindings::Metadata;
 
 use crate::ibc::{
-    convert_remote_denom_to_evm_prefix, deduct_fee, deduct_relayer_fee, deduct_token_fee,
-    get_follow_up_msgs, get_swap_token_amount_out_from_orai, handle_packet_refund,
-    ibc_packet_receive, parse_ibc_channel_without_sanity_checks,
-    parse_ibc_denom_without_sanity_checks, parse_ibc_info_without_sanity_checks,
-    parse_voucher_denom, Ics20Ack, Ics20Packet, ICS20_VERSION, NATIVE_RECEIVE_ID,
-    REFUND_FAILURE_ID,
+    convert_remote_denom_to_evm_prefix, deduct_fee, deduct_relayer_fee, deduct_token_fee, get_follow_up_msgs, get_swap_token_amount_out_from_orai, handle_packet_refund, ibc_packet_receive, parse_ibc_channel_without_sanity_checks, parse_ibc_denom_without_sanity_checks, parse_ibc_info_without_sanity_checks, parse_voucher_denom, reply, Ics20Ack, Ics20Packet, ICS20_VERSION, NATIVE_RECEIVE_ID, REFUND_FAILURE_ID
 };
 use crate::query_helper::get_destination_info_on_orai;
 use crate::testing::test_helpers::*;
@@ -30,8 +24,7 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::state::{
-    get_key_ics20_ibc_denom, ics20_denoms, increase_channel_balance, reduce_channel_balance,
-    Config, ADMIN, CHANNEL_REVERSE_STATE, CONFIG, RELAYER_FEE, REPLY_ARGS, TOKEN_FEE,
+    get_key_ics20_ibc_denom, ics20_denoms, increase_channel_balance, reduce_channel_balance, Config, RefundInfo, ADMIN, CHANNEL_REVERSE_STATE, CONFIG, RELAYER_FEE, REPLY_ARGS, TEMP_REFUND_INFO, TOKEN_FEE, REFUND_INFO_LIST
 };
 use cw20::{Cw20CoinVerified, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_ics20_msg::amount::{convert_remote_to_local, Amount};
@@ -2431,7 +2424,8 @@ fn test_reduce_channel_balance_ibc_receive_with_mint_burn() {
 #[test]
 pub fn test_get_follow_up_msg() {
     let mut deps = mock_dependencies();
-    let deps_mut = deps.as_mut();
+    let mut deps_mut = deps.as_mut();
+    let env = mock_env();
     CONFIG
         .save(
             deps_mut.storage,
@@ -2448,6 +2442,9 @@ pub fn test_get_follow_up_msg() {
             },
         )
         .unwrap();
+
+    let refund_list = vec![];
+    REFUND_INFO_LIST.save(deps_mut.storage, &refund_list).unwrap();
 
     let orai_receiver = "orai123".to_string();
     let to_send = Amount::Cw20(Cw20CoinVerified {
@@ -2466,7 +2463,7 @@ pub fn test_get_follow_up_msg() {
     .unwrap();
     assert_eq!(
         msgs,
-        vec![SubMsg::reply_on_error(
+        vec![SubMsg::reply_always(
             wasm_execute(
                 "cw20".to_string(),
                 &Cw20ExecuteMsg::Transfer {
@@ -2480,6 +2477,51 @@ pub fn test_get_follow_up_msg() {
         ),]
     );
 
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().unwrap();
+    assert_eq!(
+        temp_refund_info,
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    );
+
+    // we check error case
+    let reply_msg: Reply = Reply {
+        id: NATIVE_RECEIVE_ID,
+        result: SubMsgResult::Err(String::from("error")),
+    };
+
+    let res = reply(deps_mut.branch(), env, reply_msg).unwrap();
+    assert_eq!(
+        res.attributes[0],
+        Attribute {
+            key: "action".to_string(),
+            value: "native_receive_id".to_string(),
+        }        
+    );
+
+    let temp_refund_info = TEMP_REFUND_INFO.load(deps_mut.storage).unwrap().is_none();
+    assert_eq!(
+        temp_refund_info,
+        true,
+    );
+
+    let refund_lists = REFUND_INFO_LIST.load(deps_mut.storage).unwrap();
+    assert_eq!(
+        refund_lists.len(),
+        1,
+    );
+    assert_eq!(
+        refund_lists[0],
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    );
+
+    // TODO: check success case
+
     // case 2: memo empty => send only
     let msgs = get_follow_up_msgs(
         deps_mut.storage,
@@ -2491,7 +2533,7 @@ pub fn test_get_follow_up_msg() {
     .unwrap();
     assert_eq!(
         msgs,
-        vec![SubMsg::reply_on_error(
+        vec![SubMsg::reply_always(
             wasm_execute(
                 "cw20".to_string(),
                 &Cw20ExecuteMsg::Transfer {
@@ -2516,7 +2558,7 @@ pub fn test_get_follow_up_msg() {
     .unwrap();
     assert_eq!(
         msgs,
-        vec![SubMsg::reply_on_error(
+        vec![SubMsg::reply_always(
             wasm_execute(
                 "cw20".to_string(),
                 &Cw20ExecuteMsg::Transfer {
