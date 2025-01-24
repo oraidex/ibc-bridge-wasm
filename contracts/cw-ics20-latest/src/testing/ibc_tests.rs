@@ -3036,6 +3036,7 @@ fn test_auto_refund() {
             .add_attribute("action", "auto_refund")
     );
 
+    // after refund, the lists should be empty
     let refund_lists = REFUND_INFO_LIST.load(deps.as_mut().storage).unwrap();
     assert_eq!(
         refund_lists.len(),
