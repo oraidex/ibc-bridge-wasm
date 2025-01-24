@@ -6,7 +6,7 @@ use cosmwasm_std::{
     wasm_execute, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Event, IbcChannelConnectMsg, IbcChannelOpenMsg, Reply, Response, StdError, StdResult, SubMsgResponse, SubMsgResult
 };
 use cosmwasm_testing_util::mock::MockContract;
-use cosmwasm_vm::testing::MockInstanceOptions;
+use cosmwasm_vm::testing::{MockInstanceOptions};
 use cw20_ics20_msg::converter::ConverterController;
 use cw20_ics20_msg::helper::get_full_denom;
 use cw_controllers::AdminError;
@@ -34,11 +34,11 @@ use cw20_ics20_msg::state::{MappingMetadata, Ratio, RelayerFee, TokenFee};
 
 use crate::contract::{
     build_burn_mapping_msg, build_mint_mapping_msg, execute, handle_override_channel_balance,
-    query, query_channel, query_channel_with_key,
+    query, query_channel, query_channel_with_key, sudo
 };
 use crate::msg::{
     AllowMsg, ChannelResponse, ConfigResponse, ExecuteMsg, InitMsg, ListChannelsResponse,
-    ListMappingResponse, PairQuery, QueryMsg, RegisterDenomMsg,
+    ListMappingResponse, PairQuery, QueryMsg, RegisterDenomMsg, SudoMsg,
 };
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{coins, to_json_vec};
@@ -2975,5 +2975,71 @@ fn test_withdraw_stuck_asset() {
                 amount: Uint128::new(1000000)
             }]
         }))]
+    );
+}
+
+#[test]
+fn test_auto_refund() {
+    // case 1: native receive
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+    CONFIG
+        .save(
+            deps.as_mut().storage,
+            &Config {
+                default_timeout: 7600,
+                default_gas_limit: None,
+                fee_denom: "orai".to_string(),
+                swap_router_contract: RouterController("router".to_string()),
+                token_fee_receiver: Addr::unchecked("token_fee_receiver"),
+                relayer_fee_receiver: Addr::unchecked("relayer_fee_receiver"),
+                converter_contract: ConverterController("converter".to_string()),
+                osor_entrypoint_contract: "osor_entrypoint_contract".to_string(),
+                token_factory_addr: Addr::unchecked("token_factory_addr"),
+            },
+        )
+        .unwrap();
+
+    let orai_receiver = "orai123".to_string();
+    let to_send = Amount::Cw20(Cw20CoinVerified {
+        address: Addr::unchecked("cw20"),
+        amount: Uint128::new(1000000),
+    });
+
+    // add some refund info into refund lists
+    let refund = vec![
+        RefundInfo{
+            receiver: orai_receiver.clone(),
+            amount: to_send.clone(),
+        }
+    ];
+    REFUND_INFO_LIST.save(deps.as_mut().storage, &refund).unwrap();
+
+    // reply error => add refund lists
+    let refund_lists = REFUND_INFO_LIST.load(deps.as_mut().storage).unwrap();
+    assert_eq!(
+        refund_lists.len(),
+        1,
+    );
+    assert_eq!(
+        refund_lists,
+        refund
+    );
+
+    let mut expected_msgs: Vec<CosmosMsg> = vec![refund[0].amount.send_amount(refund[0].clone().receiver, None)];
+    
+    // refund with sudo msg (automation refund via clock module)
+    let res = sudo(deps.as_mut(), env, SudoMsg{}).unwrap();
+    assert_eq!(
+        res,
+        Response::new()
+            .add_messages(expected_msgs)
+            .add_attribute("action", "auto_refund")
+    );
+
+    let refund_lists = REFUND_INFO_LIST.load(deps.as_mut().storage).unwrap();
+    assert_eq!(
+        refund_lists.len(),
+        0,
     );
 }
