@@ -95,32 +95,6 @@ pub const UNIVERSAL_SWAP_ERROR_ID: u64 = 1344;
 
 #[entry_point]
 pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
-    // if let SubMsgResult::Err(err) = reply.result {
-    //     return match reply.id {
-    //         // happens only when send cw20 amount to recipient failed. Wont refund because this case is unlikely to happen
-    //         NATIVE_RECEIVE_ID => Ok(Response::new()
-    //             .set_data(ack_success())
-    //             .add_attribute("action", "native_receive_id")
-    //             .add_attribute("error_transferring_ibc_tokens_to_cw20", err)),
-    //         // fallback case when refund fails. Wont retry => will refund manually
-    //         REFUND_FAILURE_ID => {
-    //             // we all set ack success so that this token is stuck on Oraichain, not on OraiBridge because if ack fail => token refunded on OraiBridge yet still refund on Oraichain
-    //             Ok(Response::new()
-    //                 .set_data(ack_success())
-    //                 .add_attribute("action", "refund_failure_id")
-    //                 .add_attribute("error_trying_to_refund_single_step", err))
-    //         }
-    //         // fallback case when refund fails. Wont retry => will refund manually
-    //         UNIVERSAL_SWAP_ERROR_ID => {
-    //             // we all set ack success so that this token is stuck on Oraichain, not on OraiBridge because if ack fail => token refunded on OraiBridge yet still refund on Oraichain
-    //             Ok(Response::new()
-    //                 .set_data(ack_success())
-    //                 .add_attribute("action", "universal_swap_error")
-    //                 .add_attribute("error_trying_to_call_entrypoint_for_universal_swap", err))
-    //         }
-    //         _ => Err(ContractError::UnknownReplyId { id: reply.id }),
-    //     };
-    // }
     match reply.result {
         SubMsgResult::Err(err) => handle_reply_error(deps, err, reply.id),
         SubMsgResult::Ok(_) => handle_reply_success(deps, reply.id),
@@ -181,22 +155,18 @@ fn handle_reply_error(deps: DepsMut, err: String, id: u64) -> Result<Response, C
 
 fn handle_reply_success(deps: DepsMut, id: u64) -> Result<Response, ContractError> {
     match id {
-        NATIVE_RECEIVE_ID => {
-            // in this case we simply remove temp refund info
-            if let Some(_packet_sent) = REFUND_INFO.load(deps.storage).unwrap() {
-                // remove relay packet store
-                REFUND_INFO.save(deps.storage, &None)?;
-            }
-            
+        NATIVE_RECEIVE_ID => {            
+            REFUND_INFO.update(deps.storage, |_| -> StdResult<_> {
+                StdResult::Ok(None)
+            })?;
+
             Ok(Response::default())
         },
 
         REFUND_FAILURE_ID => {
-            // in this case we simply remove temp refund info
-            if let Some(_packet_sent) = REFUND_INFO.load(deps.storage).unwrap() {
-                // remove relay packet store
-                REFUND_INFO.save(deps.storage, &None)?;
-            }
+            REFUND_INFO.update(deps.storage, |_| -> StdResult<_> {
+                StdResult::Ok(None)
+            })?;
 
             Ok(Response::default())
         },
