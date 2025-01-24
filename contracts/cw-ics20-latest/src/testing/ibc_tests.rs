@@ -2980,7 +2980,6 @@ fn test_withdraw_stuck_asset() {
 
 #[test]
 fn test_auto_refund() {
-    // case 1: native receive
     let mut deps = mock_dependencies();
     let env = mock_env();
     CONFIG
