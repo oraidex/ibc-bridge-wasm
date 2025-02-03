@@ -93,6 +93,11 @@ pub enum ExecuteMsg {
         coin: Amount,
         receiver: Option<Addr>,
     },
+    // TODO: this msg for test only
+    // need to remove after testing is done
+    ClockEndBlock {
+        hash: String
+    }
 }
 
 #[cw_serde]
