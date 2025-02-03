@@ -164,7 +164,9 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub struct SudoMsg{}
+pub enum SudoMsg {
+    ClockEndBlock { hash: String },
+}
 
 #[cw_serde]
 pub struct ListChannelsResponse {

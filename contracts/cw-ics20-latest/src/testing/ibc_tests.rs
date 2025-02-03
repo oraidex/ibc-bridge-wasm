@@ -3034,7 +3034,7 @@ fn test_auto_refund() {
     let expected_msgs: Vec<CosmosMsg> = vec![refund[0].amount.send_amount(refund[0].clone().receiver, None)];
     
     // refund with sudo msg (automation refund via clock module)
-    let res = sudo(deps.as_mut(), env.clone(), SudoMsg{}).unwrap();
+    let res = sudo(deps.as_mut(), env.clone(), SudoMsg::ClockEndBlock { hash: "".to_string() }).unwrap();
     assert_eq!(
         res,
         Response::new()
