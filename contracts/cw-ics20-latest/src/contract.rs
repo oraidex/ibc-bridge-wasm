@@ -25,7 +25,7 @@ use crate::msg::{
 use crate::query_helper::get_mappings_from_asset_info;
 use crate::state::{
     get_key_ics20_ibc_denom, ics20_denoms, increase_channel_balance, override_channel_balance,
-    reduce_channel_balance, Config, ADMIN, ALLOW_LIST, CHANNEL_INFO,
+    reduce_channel_balance, Config, RefundInfo, ADMIN, ALLOW_LIST, CHANNEL_INFO,
     CHANNEL_REVERSE_STATE, CONFIG, REFUND_INFO_LIST, RELAYER_FEE, REPLY_ARGS,
     SINGLE_STEP_REPLY_ARGS, TOKEN_FEE,
 };
@@ -176,7 +176,7 @@ pub fn execute(
         }
         // TODO: this msg for test only
         // need to remove after testing is done
-        ExecuteMsg::ClockEndBlock { hash } => handle_clock_end_block_sudo(deps, hash)
+        ExecuteMsg::ClockEndBlock { hash } => handle_clock_end_block_sudo(deps, hash),
     }
 }
 
@@ -887,7 +887,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetTransferTokenFee { remote_token_denom } => {
             to_json_binary(&TOKEN_FEE.load(deps.storage, &remote_token_denom)?)
         }
-        QueryMsg::RefundInfoList {} => to_json_binary(&REFUND_INFO_LIST.load(deps.storage)?)
+        QueryMsg::RefundInfoList {} => to_json_binary(&query_refund_info_list(deps)?),
     }
 }
 
@@ -1076,11 +1076,14 @@ fn map_order(order: Option<u8>) -> Order {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
-        SudoMsg::ClockEndBlock { hash } => handle_clock_end_block_sudo(deps, hash)
+        SudoMsg::ClockEndBlock { hash } => handle_clock_end_block_sudo(deps, hash),
     }
 }
 
-pub fn handle_clock_end_block_sudo(deps: DepsMut, _hash: String) -> Result<Response, ContractError> {
+pub fn handle_clock_end_block_sudo(
+    deps: DepsMut,
+    _hash: String,
+) -> Result<Response, ContractError> {
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
     // get list of refund info
@@ -1111,4 +1114,15 @@ pub fn handle_clock_end_block_sudo(deps: DepsMut, _hash: String) -> Result<Respo
         .add_attribute("action", "auto_refund");
 
     Ok(response)
+}
+
+pub fn query_refund_info_list(deps: Deps) -> StdResult<Vec<RefundInfo>> {
+    let info = REFUND_INFO_LIST.may_load(deps.storage)?;
+
+    let res = match info {
+        Some(refund_list) => refund_list,
+        None => vec![],
+    };
+
+    Ok(res)
 }
