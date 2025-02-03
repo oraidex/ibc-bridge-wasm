@@ -3025,10 +3025,16 @@ fn test_auto_refund() {
         refund
     );
 
+    let query_res: Vec<RefundInfo> = from_json(&query(deps.as_ref(), env.clone(), QueryMsg::RefundInfoList {  }).unwrap()).unwrap();
+    assert_eq!(
+        query_res,
+        refund_lists
+    );
+
     let expected_msgs: Vec<CosmosMsg> = vec![refund[0].amount.send_amount(refund[0].clone().receiver, None)];
     
     // refund with sudo msg (automation refund via clock module)
-    let res = sudo(deps.as_mut(), env, SudoMsg{}).unwrap();
+    let res = sudo(deps.as_mut(), env.clone(), SudoMsg{}).unwrap();
     assert_eq!(
         res,
         Response::new()
@@ -3041,5 +3047,11 @@ fn test_auto_refund() {
     assert_eq!(
         refund_lists.len(),
         0,
+    );
+
+    let query_res: Vec<RefundInfo> = from_json(&query(deps.as_ref(), env.clone(), QueryMsg::RefundInfoList {  }).unwrap()).unwrap();
+    assert_eq!(
+        query_res.len(),
+        0
     );
 }
