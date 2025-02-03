@@ -855,6 +855,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     // we don't need to save anything if migrating from the same version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let refund_list = vec![];
+    REFUND_INFO_LIST.save(deps.storage, &refund_list)?;
+
     Ok(Response::new())
 }
 
