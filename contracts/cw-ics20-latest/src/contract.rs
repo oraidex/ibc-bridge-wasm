@@ -1071,7 +1071,13 @@ fn map_order(order: Option<u8>) -> Order {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(deps: DepsMut, _env: Env, _msg: SudoMsg) -> Result<Response, ContractError> {
+pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        SudoMsg::ClockEndBlock { hash } => handle_clock_end_block_sudo(deps, hash)
+    }
+}
+
+pub fn handle_clock_end_block_sudo(deps: DepsMut, _hash: String) -> Result<Response, ContractError> {
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
     // get list of refund info
