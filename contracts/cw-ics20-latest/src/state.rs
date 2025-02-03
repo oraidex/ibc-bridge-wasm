@@ -52,7 +52,7 @@ pub const RELAYER_FEE: Map<&str, Uint128> = Map::new("relayer_fee");
 pub const REFUND_INFO_LIST: Item<Vec<RefundInfo>> = Item::new("refund_info_list");
 
 // store temp refund info, will be remove when store to REFUND_INFO_LIST
-pub const TEMP_REFUND_INFO: Item<Option<RefundInfo>> = Item::new("temp_refund_info");
+pub const REFUND_INFO: Item<Option<RefundInfo>> = Item::new("refund_info");
 
 // refund info store refund information when packet failed
 #[cw_serde]
