@@ -25,7 +25,7 @@ use crate::msg::{
 use crate::query_helper::get_mappings_from_asset_info;
 use crate::state::{
     get_key_ics20_ibc_denom, ics20_denoms, increase_channel_balance, override_channel_balance,
-    reduce_channel_balance, Config, RefundInfo, ADMIN, ALLOW_LIST, CHANNEL_INFO,
+    reduce_channel_balance, Config, ADMIN, ALLOW_LIST, CHANNEL_INFO,
     CHANNEL_REVERSE_STATE, CONFIG, REFUND_INFO_LIST, RELAYER_FEE, REPLY_ARGS,
     SINGLE_STEP_REPLY_ARGS, TOKEN_FEE,
 };
@@ -881,6 +881,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetTransferTokenFee { remote_token_denom } => {
             to_json_binary(&TOKEN_FEE.load(deps.storage, &remote_token_denom)?)
         }
+        QueryMsg::RefundInfoList {} => to_json_binary(&REFUND_INFO_LIST.load(deps.storage)?)
     }
 }
 
