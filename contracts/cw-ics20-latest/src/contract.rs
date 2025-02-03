@@ -61,6 +61,9 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &cfg)?;
 
+    let refund_list = vec![];
+    REFUND_INFO_LIST.save(deps.storage, &refund_list)?;
+
     // add all allows
     for allowed in msg.allowlist {
         let contract = deps.api.addr_validate(&allowed.contract)?;
@@ -1088,8 +1091,11 @@ pub fn sudo(deps: DepsMut, _env: Env, _msg: SudoMsg) -> Result<Response, Contrac
         cosmos_msgs.push(msg);
     }
 
-    // remove refund info list
-    REFUND_INFO_LIST.remove(deps.storage);
+    // clear refund lists
+    REFUND_INFO_LIST.update(deps.storage, |mut lists| -> StdResult<_> {
+        lists.clear();
+        StdResult::Ok(lists)
+    })?;
 
     let response = Response::new()
         .add_messages(cosmos_msgs)
