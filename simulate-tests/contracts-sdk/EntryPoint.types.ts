@@ -54,6 +54,11 @@ export type ExecuteMsg = {
   universal_swap: {
     memo: string;
   };
+} | {
+  withdraw_asset: {
+    coin: Asset;
+    receiver?: Addr | null;
+  };
 };
 export type Action = {
   transfer: {

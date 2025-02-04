@@ -26,7 +26,7 @@ use crate::query_helper::get_mappings_from_asset_info;
 use crate::state::{
     get_key_ics20_ibc_denom, ics20_denoms, increase_channel_balance, override_channel_balance,
     reduce_channel_balance, Config, RefundInfo, ADMIN, ALLOW_LIST, CHANNEL_INFO,
-    CHANNEL_REVERSE_STATE, CONFIG, REFUND_INFO_LIST, RELAYER_FEE, REPLY_ARGS,
+    CHANNEL_REVERSE_STATE, CONFIG, REFUND_INFO, REFUND_INFO_LIST, RELAYER_FEE, REPLY_ARGS,
     SINGLE_STEP_REPLY_ARGS, TOKEN_FEE,
 };
 use cw20_ics20_msg::amount::{convert_local_to_remote, convert_remote_to_local, Amount};
@@ -61,8 +61,8 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &cfg)?;
 
-    let refund_list = vec![];
-    REFUND_INFO_LIST.save(deps.storage, &refund_list)?;
+    REFUND_INFO.save(deps.storage, &None)?;
+    REFUND_INFO_LIST.save(deps.storage, &vec![])?;
 
     // add all allows
     for allowed in msg.allowlist {
@@ -855,8 +855,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     // we don't need to save anything if migrating from the same version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let refund_list = vec![];
-    REFUND_INFO_LIST.save(deps.storage, &refund_list)?;
+    REFUND_INFO.save(deps.storage, &None)?;
+    REFUND_INFO_LIST.save(deps.storage, &vec![])?;
 
     Ok(Response::new())
 }

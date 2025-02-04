@@ -7,6 +7,7 @@ export interface InstantiateMsg {
   gov_contract: string;
   osor_entrypoint_contract: string;
   swap_router_contract: string;
+  token_factory_addr: string;
 }
 export interface AllowMsg {
   contract: string;
@@ -31,6 +32,7 @@ export type ExecuteMsg = {
     relayer_fee?: RelayerFee[] | null;
     relayer_fee_receiver?: string | null;
     swap_router_contract?: string | null;
+    token_factory_addr?: string | null;
     token_fee?: TokenFee[] | null;
   };
 } | {
@@ -60,8 +62,24 @@ export type ExecuteMsg = {
     func: HookMethods;
     orai_receiver: string;
   };
+} | {
+  register_denom: RegisterDenomMsg;
+} | {
+  withdraw_asset: {
+    coin: Amount;
+    receiver?: Addr | null;
+  };
+} | {
+  clock_end_block: {
+    hash: string;
+  };
 };
 export type HookMethods = "universal_swap";
+export type Amount = {
+  native: Coin;
+} | {
+  cw20: Cw20CoinVerified;
+};
 export interface UpdatePairMsg {
   denom: string;
   is_mint_burn?: boolean | null;
@@ -85,6 +103,27 @@ export interface TokenFee {
 export interface Ratio {
   denominator: number;
   nominator: number;
+}
+export interface RegisterDenomMsg {
+  metadata?: Metadata | null;
+  subdenom: string;
+}
+export interface Metadata {
+  base?: string | null;
+  denom_units: DenomUnit[];
+  description?: string | null;
+  display?: string | null;
+  name?: string | null;
+  symbol?: string | null;
+}
+export interface DenomUnit {
+  aliases: string[];
+  denom: string;
+  exponent: number;
+}
+export interface Cw20CoinVerified {
+  address: Addr;
+  amount: Uint128;
 }
 export type QueryMsg = {
   port: {};
@@ -131,6 +170,8 @@ export type QueryMsg = {
   get_transfer_token_fee: {
     remote_token_denom: string;
   };
+} | {
+  refund_info_list: {};
 };
 export interface AdminResponse {
   admin?: string | null;
@@ -139,19 +180,10 @@ export interface AllowedResponse {
   gas_limit?: number | null;
   is_allowed: boolean;
 }
-export type Amount = {
-  native: Coin;
-} | {
-  cw20: Cw20CoinVerified;
-};
 export interface ChannelResponse {
   balances: Amount[];
   info: ChannelInfo;
   total_sent: Amount[];
-}
-export interface Cw20CoinVerified {
-  address: Addr;
-  amount: Uint128;
 }
 export interface ChannelInfo {
   connection_id: string;
@@ -207,4 +239,9 @@ export interface MappingMetadata {
 export type ArrayOfPairQuery = PairQuery[];
 export interface PortResponse {
   port_id: string;
+}
+export type ArrayOfRefundInfo = RefundInfo[];
+export interface RefundInfo {
+  amount: Amount;
+  receiver: string;
 }

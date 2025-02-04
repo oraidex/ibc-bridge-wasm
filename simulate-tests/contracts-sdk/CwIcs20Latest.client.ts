@@ -7,7 +7,7 @@
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee } from "@cosmjs/amino";
 import {Uint128, Binary, AssetInfo, Addr, Cw20ReceiveMsg, TransferBackMsg, Coin} from "./types";
-import {InstantiateMsg, AllowMsg, ExecuteMsg, HookMethods, UpdatePairMsg, DeletePairMsg, RelayerFee, TokenFee, Ratio, QueryMsg, AdminResponse, AllowedResponse, Amount, ChannelResponse, Cw20CoinVerified, ChannelInfo, IbcEndpoint, ChannelWithKeyResponse, ConfigResponse, RelayerFeeResponse, ListAllowedResponse, AllowedInfo, ListChannelsResponse, PairQuery, MappingMetadata, ArrayOfPairQuery, PortResponse} from "./CwIcs20Latest.types";
+import {InstantiateMsg, AllowMsg, ExecuteMsg, HookMethods, Amount, UpdatePairMsg, DeletePairMsg, RelayerFee, TokenFee, Ratio, RegisterDenomMsg, Metadata, DenomUnit, Cw20CoinVerified, QueryMsg, AdminResponse, AllowedResponse, ChannelResponse, ChannelInfo, IbcEndpoint, ChannelWithKeyResponse, ConfigResponse, RelayerFeeResponse, ListAllowedResponse, AllowedInfo, ListChannelsResponse, PairQuery, MappingMetadata, ArrayOfPairQuery, PortResponse, ArrayOfRefundInfo, RefundInfo} from "./CwIcs20Latest.types";
 export interface CwIcs20LatestReadOnlyInterface {
   contractAddress: string;
   port: () => Promise<PortResponse>;
@@ -64,6 +64,7 @@ export interface CwIcs20LatestReadOnlyInterface {
   }: {
     remoteTokenDenom: string;
   }) => Promise<Ratio>;
+  refundInfoList: () => Promise<ArrayOfRefundInfo>;
 }
 export class CwIcs20LatestQueryClient implements CwIcs20LatestReadOnlyInterface {
   client: CosmWasmClient;
@@ -84,6 +85,7 @@ export class CwIcs20LatestQueryClient implements CwIcs20LatestReadOnlyInterface 
     this.pairMapping = this.pairMapping.bind(this);
     this.pairMappingsFromAssetInfo = this.pairMappingsFromAssetInfo.bind(this);
     this.getTransferTokenFee = this.getTransferTokenFee.bind(this);
+    this.refundInfoList = this.refundInfoList.bind(this);
   }
 
   port = async (): Promise<PortResponse> => {
@@ -209,6 +211,11 @@ export class CwIcs20LatestQueryClient implements CwIcs20LatestReadOnlyInterface 
       }
     });
   };
+  refundInfoList = async (): Promise<ArrayOfRefundInfo> => {
+    return this.client.queryContractSmart(this.contractAddress, {
+      refund_info_list: {}
+    });
+  };
 }
 export interface CwIcs20LatestInterface extends CwIcs20LatestReadOnlyInterface {
   contractAddress: string;
@@ -267,6 +274,7 @@ export interface CwIcs20LatestInterface extends CwIcs20LatestReadOnlyInterface {
     relayerFee,
     relayerFeeReceiver,
     swapRouterContract,
+    tokenFactoryAddr,
     tokenFee
   }: {
     admin?: string;
@@ -278,6 +286,7 @@ export interface CwIcs20LatestInterface extends CwIcs20LatestReadOnlyInterface {
     relayerFee?: RelayerFee[];
     relayerFeeReceiver?: string;
     swapRouterContract?: string;
+    tokenFactoryAddr?: string;
     tokenFee?: TokenFee[];
   }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   increaseChannelBalanceIbcReceive: ({
@@ -322,6 +331,25 @@ export interface CwIcs20LatestInterface extends CwIcs20LatestReadOnlyInterface {
     func: HookMethods;
     oraiReceiver: string;
   }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  registerDenom: ({
+    metadata,
+    subdenom
+  }: {
+    metadata?: Metadata;
+    subdenom: string;
+  }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  withdrawAsset: ({
+    coin,
+    receiver
+  }: {
+    coin: Amount;
+    receiver?: Addr;
+  }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  clockEndBlock: ({
+    hash
+  }: {
+    hash: string;
+  }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
 }
 export class CwIcs20LatestClient extends CwIcs20LatestQueryClient implements CwIcs20LatestInterface {
   client: SigningCosmWasmClient;
@@ -342,6 +370,9 @@ export class CwIcs20LatestClient extends CwIcs20LatestQueryClient implements CwI
     this.reduceChannelBalanceIbcReceive = this.reduceChannelBalanceIbcReceive.bind(this);
     this.overrideChannelBalance = this.overrideChannelBalance.bind(this);
     this.ibcHooksReceive = this.ibcHooksReceive.bind(this);
+    this.registerDenom = this.registerDenom.bind(this);
+    this.withdrawAsset = this.withdrawAsset.bind(this);
+    this.clockEndBlock = this.clockEndBlock.bind(this);
   }
 
   receive = async ({
@@ -434,6 +465,7 @@ export class CwIcs20LatestClient extends CwIcs20LatestQueryClient implements CwI
     relayerFee,
     relayerFeeReceiver,
     swapRouterContract,
+    tokenFactoryAddr,
     tokenFee
   }: {
     admin?: string;
@@ -445,6 +477,7 @@ export class CwIcs20LatestClient extends CwIcs20LatestQueryClient implements CwI
     relayerFee?: RelayerFee[];
     relayerFeeReceiver?: string;
     swapRouterContract?: string;
+    tokenFactoryAddr?: string;
     tokenFee?: TokenFee[];
   }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
@@ -458,6 +491,7 @@ export class CwIcs20LatestClient extends CwIcs20LatestQueryClient implements CwI
         relayer_fee: relayerFee,
         relayer_fee_receiver: relayerFeeReceiver,
         swap_router_contract: swapRouterContract,
+        token_factory_addr: tokenFactoryAddr,
         token_fee: tokenFee
       }
     }, _fee, _memo, _funds);
@@ -536,6 +570,45 @@ export class CwIcs20LatestClient extends CwIcs20LatestQueryClient implements CwI
         args,
         func,
         orai_receiver: oraiReceiver
+      }
+    }, _fee, _memo, _funds);
+  };
+  registerDenom = async ({
+    metadata,
+    subdenom
+  }: {
+    metadata?: Metadata;
+    subdenom: string;
+  }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      register_denom: {
+        metadata,
+        subdenom
+      }
+    }, _fee, _memo, _funds);
+  };
+  withdrawAsset = async ({
+    coin,
+    receiver
+  }: {
+    coin: Amount;
+    receiver?: Addr;
+  }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      withdraw_asset: {
+        coin,
+        receiver
+      }
+    }, _fee, _memo, _funds);
+  };
+  clockEndBlock = async ({
+    hash
+  }: {
+    hash: string;
+  }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      clock_end_block: {
+        hash
       }
     }, _fee, _memo, _funds);
   };
