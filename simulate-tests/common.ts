@@ -106,11 +106,13 @@ export const deployIbcWasmContract = async (
     converter_contract,
     gov_contract = senderAddress,
     osor_entrypoint_contract,
+    token_factory_addr = senderAddress,
   }: {
     gov_contract?: string;
     swap_router_contract: string;
     converter_contract: string;
     osor_entrypoint_contract: string;
+    token_factory_addr?: string;
   }
 ): Promise<CwIcs20LatestClient> => {
   const { codeId } = await client.upload(
@@ -131,6 +133,7 @@ export const deployIbcWasmContract = async (
       swap_router_contract,
       converter_contract,
       osor_entrypoint_contract,
+      token_factory_addr,
     } as CwIcs20LatestInstantiateMsg,
     "cw-ics20-latest",
     "auto"
@@ -150,7 +153,7 @@ export const deployOraiDexAdapterContract = async (
 ): Promise<OraidexClient> => {
   const { codeId } = await client.upload(
     senderAddress,
-    readFileSync(process.env.ORAIDEX_ADAPTER),
+    readFileSync(process.env.ORAIDEX_ADAPTER!),
     "auto"
   );
   const { contractAddress } = await client.instantiate(
@@ -178,7 +181,7 @@ export const deployIbcWasmAdapterContract = async (
 ): Promise<OraiIbcWasmClient> => {
   const { codeId } = await client.upload(
     senderAddress,
-    readFileSync(process.env.IBC_WASM_ADAPTER),
+    readFileSync(process.env.IBC_WASM_ADAPTER!),
     "auto"
   );
   const { contractAddress } = await client.instantiate(
@@ -204,7 +207,7 @@ export const deployIbcHooksAdapterContract = async (
 ): Promise<IbcHooksClient> => {
   const { codeId } = await client.upload(
     senderAddress,
-    readFileSync(process.env.IBC_HOOKS_ADAPTER),
+    readFileSync(process.env.IBC_HOOKS_ADAPTER!),
     "auto"
   );
   const { contractAddress } = await client.instantiate(
@@ -224,7 +227,7 @@ export const deployOsorEntrypointContract = async (
 ): Promise<EntryPointClient> => {
   const { codeId } = await client.upload(
     senderAddress,
-    readFileSync(process.env.OSOR_ENTRYPOINT),
+    readFileSync(process.env.OSOR_ENTRYPOINT!),
     "auto"
   );
   const { contractAddress } = await client.instantiate(
@@ -251,7 +254,7 @@ export const deployMixedRouterContract = async (
 ): Promise<OraiswapMixedRouterClient> => {
   const { codeId } = await client.upload(
     senderAddress,
-    readFileSync(process.env.MIXED_ROUTER),
+    readFileSync(process.env.MIXED_ROUTER!),
     "auto"
   );
   const { contractAddress } = await client.instantiate(
