@@ -64,7 +64,7 @@ pub struct RefundInfo {
 
 impl fmt::Display for RefundInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Receiver: {}, Amount: {}", self.receiver, self.amount.denom())
+        write!(f, "Receiver: {}, Amount: {}, Denom {}", self.receiver, self.amount.amount(), self.amount.denom())
     }
 }
 

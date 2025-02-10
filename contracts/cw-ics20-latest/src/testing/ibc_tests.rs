@@ -2999,6 +2999,7 @@ fn test_auto_refund() {
         Response::new()
             .add_messages(expected_msgs)
             .add_attribute("action", "auto_refund")
+            .add_attribute("refund_lists", refund[0].to_string())
     );
 
     // after refund, the lists should be empty
