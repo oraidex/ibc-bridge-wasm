@@ -1,4 +1,5 @@
 use std::array;
+use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
@@ -59,6 +60,12 @@ pub const REFUND_INFO: Item<Option<RefundInfo>> = Item::new("refund_info");
 pub struct RefundInfo {
     pub receiver: String,
     pub amount: Amount
+}
+
+impl fmt::Display for RefundInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Receiver: {}, Amount: {}, Denom {}", self.receiver, self.amount.amount(), self.amount.denom())
+    }
 }
 
 // // accumulated token fee

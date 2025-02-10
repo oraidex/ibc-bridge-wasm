@@ -1099,12 +1099,17 @@ pub fn handle_clock_end_block_sudo(
         return Ok(response);
     }
 
-    for refund_info in refund_info_list.into_iter() {
+    let mut refund_info_lists: Vec<String> = vec![];
+    for refund_info in refund_info_list.clone().into_iter() {
+        refund_info_lists.push(refund_info.clone().to_string());
+
         let msg = refund_info
             .amount
             .send_amount(refund_info.clone().receiver, None);
         cosmos_msgs.push(msg);
     }
+
+    let refund_info_lists_attr = refund_info_lists.join(",");
 
     // clear refund lists
     REFUND_INFO_LIST.update(deps.storage, |mut lists| -> StdResult<_> {
@@ -1114,7 +1119,8 @@ pub fn handle_clock_end_block_sudo(
 
     let response = Response::new()
         .add_messages(cosmos_msgs)
-        .add_attribute("action", "auto_refund");
+        .add_attribute("action", "auto_refund")
+        .add_attribute("refund_lists", refund_info_lists_attr);
 
     Ok(response)
 }
