@@ -32,6 +32,7 @@ import { InstantiateMsg as OraiSwapV3InstantiateMsg } from "@oraichain/oraidex-c
 import { Event } from "@cosmjs/stargate";
 
 export const senderAddress = "orai1g4h64yjt0fvzv5v2j8tyfnpe5kmnetejvfgs7g";
+export const tokenfactoryAddress = "orai1g4h64yjt0fvzv5v2j8tyfnpe5kmnetejvfgs7g";
 export const AtomDenom =
   "ibc/A2E2EEC9057A4A1C2C0A6A4C78B0239118DF5F278830F50B4A6BDD7A66506B78";
 
@@ -105,9 +106,11 @@ export const deployIbcWasmContract = async (
     swap_router_contract,
     converter_contract,
     gov_contract = senderAddress,
+    token_factory_addr = tokenfactoryAddress,
     osor_entrypoint_contract,
   }: {
     gov_contract?: string;
+    token_factory_addr?: string
     swap_router_contract: string;
     converter_contract: string;
     osor_entrypoint_contract: string;
@@ -131,6 +134,7 @@ export const deployIbcWasmContract = async (
       swap_router_contract,
       converter_contract,
       osor_entrypoint_contract,
+      token_factory_addr,
     } as CwIcs20LatestInstantiateMsg,
     "cw-ics20-latest",
     "auto"
