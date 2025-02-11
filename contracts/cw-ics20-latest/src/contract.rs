@@ -174,8 +174,6 @@ pub fn execute(
         ExecuteMsg::WithdrawAsset { coin, receiver } => {
             execute_withdraw_asset(deps, info, coin, receiver)
         }
-        // TODO: this msg for test only
-        // need to remove after testing is done
         ExecuteMsg::ClockEndBlock { hash } => handle_clock_end_block_sudo(deps, hash),
     }
 }
