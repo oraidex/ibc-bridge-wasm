@@ -73,7 +73,7 @@ const ibcTransferAmount = "100000000";
 const initialBalanceAmount = "10000000000000";
 
 describe.only("IBCModuleWithMintBurn", () => {
-  let oraiPort: string;
+  let oraiPort: string = "";
   let oraiIbcDenom: string =
     "tron-testnet0xA325Ad6D9c92B55A3Fc5aD7e412B1518F96441C0";
   let airiIbcDenom: string =
