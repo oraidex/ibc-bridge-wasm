@@ -20,13 +20,14 @@ use crate::ibc_hooks::ibc_hooks_receive;
 use crate::msg::{
     AllowedResponse, ChannelResponse, ChannelWithKeyResponse, ConfigResponse, ExecuteMsg, InitMsg,
     ListAllowedResponse, ListChannelsResponse, ListMappingResponse, MigrateMsg, PairQuery,
-    PortResponse, QueryMsg, RegisterDenomMsg, RelayerFeeResponse,
+    PortResponse, QueryMsg, RegisterDenomMsg, RelayerFeeResponse, SudoMsg,
 };
 use crate::query_helper::get_mappings_from_asset_info;
 use crate::state::{
     get_key_ics20_ibc_denom, ics20_denoms, increase_channel_balance, override_channel_balance,
-    reduce_channel_balance, Config, ADMIN, ALLOW_LIST, CHANNEL_INFO, CHANNEL_REVERSE_STATE, CONFIG,
-    RELAYER_FEE, REPLY_ARGS, SINGLE_STEP_REPLY_ARGS, TOKEN_FEE,
+    reduce_channel_balance, Config, RefundInfo, ADMIN, ALLOW_LIST, CHANNEL_INFO,
+    CHANNEL_REVERSE_STATE, CONFIG, REFUND_INFO, REFUND_INFO_LIST, RELAYER_FEE, REPLY_ARGS,
+    SINGLE_STEP_REPLY_ARGS, TOKEN_FEE,
 };
 use cw20_ics20_msg::amount::{convert_local_to_remote, convert_remote_to_local, Amount};
 use cw20_ics20_msg::msg::{AllowedInfo, DeletePairMsg, TransferBackMsg, UpdatePairMsg};
@@ -59,6 +60,9 @@ pub fn instantiate(
         token_factory_addr: deps.api.addr_validate(&msg.token_factory_addr)?,
     };
     CONFIG.save(deps.storage, &cfg)?;
+
+    REFUND_INFO.save(deps.storage, &None)?;
+    REFUND_INFO_LIST.save(deps.storage, &vec![])?;
 
     // add all allows
     for allowed in msg.allowlist {
@@ -170,6 +174,7 @@ pub fn execute(
         ExecuteMsg::WithdrawAsset { coin, receiver } => {
             execute_withdraw_asset(deps, info, coin, receiver)
         }
+        ExecuteMsg::ClockEndBlock { hash } => handle_clock_end_block_sudo(deps, hash),
     }
 }
 
@@ -848,6 +853,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     // we don't need to save anything if migrating from the same version
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    REFUND_INFO.save(deps.storage, &None)?;
+    REFUND_INFO_LIST.save(deps.storage, &vec![])?;
+
     Ok(Response::new())
 }
 
@@ -880,6 +888,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetTransferTokenFee { remote_token_denom } => {
             to_json_binary(&TOKEN_FEE.load(deps.storage, &remote_token_denom)?)
         }
+        QueryMsg::RefundInfoList {} => to_json_binary(&query_refund_info_list(deps)?),
     }
 }
 
@@ -1063,4 +1072,64 @@ fn map_order(order: Option<u8>) -> Order {
         }
         None => Order::Ascending,
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        SudoMsg::ClockEndBlock { hash } => handle_clock_end_block_sudo(deps, hash),
+    }
+}
+
+pub fn handle_clock_end_block_sudo(
+    deps: DepsMut,
+    _hash: String,
+) -> Result<Response, ContractError> {
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    // get list of refund info
+    let refund_info_list = REFUND_INFO_LIST.load(deps.storage)?;
+
+    // if refund list is empty, return response
+    if refund_info_list.len() == 0 {
+        let response = Response::new().add_attribute("action", "auto_refund");
+
+        return Ok(response);
+    }
+
+    let mut refund_info_lists: Vec<String> = vec![];
+    for refund_info in refund_info_list.clone().into_iter() {
+        refund_info_lists.push(refund_info.clone().to_string());
+
+        let msg = refund_info
+            .amount
+            .send_amount(refund_info.clone().receiver, None);
+        cosmos_msgs.push(msg);
+    }
+
+    let refund_info_lists_attr = refund_info_lists.join(",");
+
+    // clear refund lists
+    REFUND_INFO_LIST.update(deps.storage, |mut lists| -> StdResult<_> {
+        lists.clear();
+        StdResult::Ok(lists)
+    })?;
+
+    let response = Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attribute("action", "auto_refund")
+        .add_attribute("refund_lists", refund_info_lists_attr);
+
+    Ok(response)
+}
+
+pub fn query_refund_info_list(deps: Deps) -> StdResult<Vec<RefundInfo>> {
+    let info = REFUND_INFO_LIST.may_load(deps.storage)?;
+
+    let res = match info {
+        Some(refund_list) => refund_list,
+        None => vec![],
+    };
+
+    Ok(res)
 }

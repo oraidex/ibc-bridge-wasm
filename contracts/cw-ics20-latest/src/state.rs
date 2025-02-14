@@ -1,5 +1,9 @@
+use std::array;
+use std::fmt;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
+use cw20_ics20_msg::amount::Amount;
 use cw20_ics20_msg::converter::ConverterController;
 use cw20_ics20_msg::state::{
     AllowInfo, ChannelInfo, ConvertReplyArgs, MappingMetadata, Ratio, ReplyArgs,
@@ -44,6 +48,25 @@ pub const TOKEN_FEE: Map<&str, Ratio> = Map::new("token_fee");
 // relayer fee. This fee depends on the network type, not token type
 // decimals of relayer fee should always be 10^6 because we use ORAI as relayer fee
 pub const RELAYER_FEE: Map<&str, Uint128> = Map::new("relayer_fee");
+
+// store refund info 
+pub const REFUND_INFO_LIST: Item<Vec<RefundInfo>> = Item::new("refund_info_list");
+
+// store temp refund info, will be remove when store to REFUND_INFO_LIST
+pub const REFUND_INFO: Item<Option<RefundInfo>> = Item::new("refund_info");
+
+// refund info store refund information when packet failed
+#[cw_serde]
+pub struct RefundInfo {
+    pub receiver: String,
+    pub amount: Amount
+}
+
+impl fmt::Display for RefundInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Receiver: {}, Amount: {}, Denom {}", self.receiver, self.amount.amount(), self.amount.denom())
+    }
+}
 
 // // accumulated token fee
 // pub const TOKEN_FEE_ACCUMULATOR: Map<&str, Uint128> = Map::new("token_fee_accumulator");

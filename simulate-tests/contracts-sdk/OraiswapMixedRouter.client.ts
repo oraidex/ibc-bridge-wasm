@@ -7,7 +7,7 @@
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { Coin, StdFee } from "@cosmjs/amino";
 import {Addr, Uint128, Binary, SwapOperation, AssetInfo, Percentage, Cw20ReceiveMsg, PoolKey, FeeTier} from "./types";
-import {InstantiateMsg, ExecuteMsg, QueryMsg, MigrateMsg, ConfigResponse, SimulateSwapOperationsResponse} from "./OraiswapMixedRouter.types";
+import {InstantiateMsg, ExecuteMsg, Affiliate, QueryMsg, MigrateMsg, ConfigResponse, SimulateSwapOperationsResponse} from "./OraiswapMixedRouter.types";
 export interface OraiswapMixedRouterReadOnlyInterface {
   contractAddress: string;
   config: () => Promise<ConfigResponse>;
@@ -63,10 +63,12 @@ export interface OraiswapMixedRouterInterface extends OraiswapMixedRouterReadOnl
     sender: string;
   }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   executeSwapOperations: ({
+    affiliates,
     minimumReceive,
     operations,
     to
   }: {
+    affiliates?: Affiliate[];
     minimumReceive?: Uint128;
     operations: SwapOperation[];
     to?: Addr;
@@ -81,10 +83,12 @@ export interface OraiswapMixedRouterInterface extends OraiswapMixedRouterReadOnl
     to?: Addr;
   }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
   assertMinimumReceiveAndTransfer: ({
+    affiliates,
     assetInfo,
     minimumReceive,
     receiver
   }: {
+    affiliates: Affiliate[];
     assetInfo: AssetInfo;
     minimumReceive: Uint128;
     receiver: Addr;
@@ -136,16 +140,19 @@ export class OraiswapMixedRouterClient extends OraiswapMixedRouterQueryClient im
     }, _fee, _memo, _funds);
   };
   executeSwapOperations = async ({
+    affiliates,
     minimumReceive,
     operations,
     to
   }: {
+    affiliates?: Affiliate[];
     minimumReceive?: Uint128;
     operations: SwapOperation[];
     to?: Addr;
   }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       execute_swap_operations: {
+        affiliates,
         minimum_receive: minimumReceive,
         operations,
         to
@@ -170,16 +177,19 @@ export class OraiswapMixedRouterClient extends OraiswapMixedRouterQueryClient im
     }, _fee, _memo, _funds);
   };
   assertMinimumReceiveAndTransfer = async ({
+    affiliates,
     assetInfo,
     minimumReceive,
     receiver
   }: {
+    affiliates: Affiliate[];
     assetInfo: AssetInfo;
     minimumReceive: Uint128;
     receiver: Addr;
   }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
     return await this.client.execute(this.sender, this.contractAddress, {
       assert_minimum_receive_and_transfer: {
+        affiliates,
         asset_info: assetInfo,
         minimum_receive: minimumReceive,
         receiver

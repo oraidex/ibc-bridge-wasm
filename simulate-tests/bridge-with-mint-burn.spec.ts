@@ -7,9 +7,7 @@ import {
   IbcPacket,
   SimulateCosmWasmClient,
 } from "@oraichain/cw-simulate";
-import { Ok } from "ts-results";
 import bech32 from "bech32";
-import { readFileSync } from "fs";
 import {
   OraiswapFactoryClient,
   OraiswapRouterClient,
@@ -21,7 +19,6 @@ import {
 } from "@oraichain/oraidex-contracts-sdk";
 // import { CwIcs20LatestClient } from "@oraichain/common-contracts-sdk";
 import { CwIcs20LatestClient } from "./contracts-sdk/CwIcs20Latest.client";
-import * as oraidexArtifacts from "@oraichain/oraidex-contracts-build";
 import { FungibleTokenPacketData } from "cosmjs-types/ibc/applications/transfer/v2/packet";
 import {
   deployIbcHooksAdapterContract,
@@ -38,12 +35,7 @@ import {
 } from "./common";
 import { oraib2oraichain, toAmount } from "@oraichain/oraidex-common";
 import { ORAI } from "@oraichain/oraidex-common";
-import {
-  AssetInfo,
-  TransferBackMsg,
-} from "@oraichain/common-contracts-sdk/build/CwIcs20Latest.types";
 import { toDisplay } from "@oraichain/oraidex-common";
-import { parseToIbcWasmMemo } from "./proto-gen";
 import { expect, afterAll, beforeAll, describe, it, beforeEach } from "vitest";
 import {
   OraiswapMixedRouterClient,
@@ -56,7 +48,6 @@ import {
   buildUniversalSwapMemo,
   SWAP_VENUE_NAME,
 } from "@oraichain/oraidex-universal-swap";
-import { COSMOS_CHAIN_IDS } from "@oraichain/common";
 
 let cosmosChain: CWSimulateApp;
 // oraichain support cosmwasm
@@ -82,7 +73,7 @@ const ibcTransferAmount = "100000000";
 const initialBalanceAmount = "10000000000000";
 
 describe.only("IBCModuleWithMintBurn", () => {
-  let oraiPort: string;
+  let oraiPort: string = "";
   let oraiIbcDenom: string =
     "tron-testnet0xA325Ad6D9c92B55A3Fc5aD7e412B1518F96441C0";
   let airiIbcDenom: string =

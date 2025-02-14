@@ -8,6 +8,7 @@ export type ExecuteMsg = {
   receive: Cw20ReceiveMsg;
 } | {
   execute_swap_operations: {
+    affiliates?: Affiliate[] | null;
     minimum_receive?: Uint128 | null;
     operations: SwapOperation[];
     to?: Addr | null;
@@ -20,6 +21,7 @@ export type ExecuteMsg = {
   };
 } | {
   assert_minimum_receive_and_transfer: {
+    affiliates: Affiliate[];
     asset_info: AssetInfo;
     minimum_receive: Uint128;
     receiver: Addr;
@@ -32,6 +34,10 @@ export type ExecuteMsg = {
     owner?: string | null;
   };
 };
+export interface Affiliate {
+  address: Addr;
+  basis_points_fee: Uint128;
+}
 export type QueryMsg = {
   config: {};
 } | {

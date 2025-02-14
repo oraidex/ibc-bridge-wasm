@@ -7,6 +7,7 @@ use oraiswap::asset::AssetInfo;
 use cw20_ics20_msg::state::{ChannelInfo, MappingMetadata, Ratio, RelayerFee, TokenFee};
 use cw20_ics20_msg::{amount::Amount, ibc_hooks::HookMethods};
 use token_bindings::Metadata;
+use crate::state::{RefundInfo};
 
 #[cw_serde]
 pub struct InitMsg {
@@ -92,6 +93,11 @@ pub enum ExecuteMsg {
         coin: Amount,
         receiver: Option<Addr>,
     },
+    // TODO: this msg for test only
+    // need to remove after testing is done
+    ClockEndBlock {
+        hash: String
+    }
 }
 
 #[cw_serde]
@@ -158,6 +164,13 @@ pub enum QueryMsg {
     PairMappingsFromAssetInfo { asset_info: AssetInfo },
     #[returns(Ratio)]
     GetTransferTokenFee { remote_token_denom: String },
+    #[returns(Vec<RefundInfo>)]
+    RefundInfoList {},
+}
+
+#[cw_serde]
+pub enum SudoMsg {
+    ClockEndBlock { hash: String },
 }
 
 #[cw_serde]

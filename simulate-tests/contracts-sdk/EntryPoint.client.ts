@@ -127,6 +127,13 @@ export interface EntryPointInterface extends EntryPointReadOnlyInterface {
   }: {
     memo: string;
   }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  withdrawAsset: ({
+    coin,
+    receiver
+  }: {
+    coin: Asset;
+    receiver?: Addr;
+  }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
 }
 export class EntryPointClient extends EntryPointQueryClient implements EntryPointInterface {
   client: SigningCosmWasmClient;
@@ -145,6 +152,7 @@ export class EntryPointClient extends EntryPointQueryClient implements EntryPoin
     this.postSwapAction = this.postSwapAction.bind(this);
     this.updateConfig = this.updateConfig.bind(this);
     this.universalSwap = this.universalSwap.bind(this);
+    this.withdrawAsset = this.withdrawAsset.bind(this);
   }
 
   receive = async ({
@@ -287,6 +295,20 @@ export class EntryPointClient extends EntryPointQueryClient implements EntryPoin
     return await this.client.execute(this.sender, this.contractAddress, {
       universal_swap: {
         memo
+      }
+    }, _fee, _memo, _funds);
+  };
+  withdrawAsset = async ({
+    coin,
+    receiver
+  }: {
+    coin: Asset;
+    receiver?: Addr;
+  }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      withdraw_asset: {
+        coin,
+        receiver
       }
     }, _fee, _memo, _funds);
   };

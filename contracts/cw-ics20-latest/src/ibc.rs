@@ -17,14 +17,13 @@ use cw_storage_plus::Map;
 use oraiswap::asset::AssetInfo;
 use oraiswap::router::{RouterController, SwapOperation};
 use skip::entry_point::ExecuteMsg as EntryPointExecuteMsg;
-use token_bindings::Metadata;
 
 use crate::contract::build_mint_mapping_msg;
 use crate::error::{ContractError, Never};
 use crate::msg::{ExecuteMsg, RegisterDenomMsg};
 use crate::state::{
-    get_key_ics20_ibc_denom, ics20_denoms, undo_reduce_channel_balance, ALLOW_LIST, CHANNEL_INFO,
-    CONFIG, RELAYER_FEE, TOKEN_FEE,
+    get_key_ics20_ibc_denom, ics20_denoms, undo_reduce_channel_balance, RefundInfo, ALLOW_LIST,
+    CHANNEL_INFO, CONFIG, REFUND_INFO, REFUND_INFO_LIST, RELAYER_FEE, TOKEN_FEE,
 };
 use cw20_ics20_msg::amount::{convert_remote_to_local, Amount};
 use cw20_ics20_msg::msg::FeeData;
@@ -95,35 +94,61 @@ pub const REFUND_FAILURE_ID: u64 = 1340;
 pub const UNIVERSAL_SWAP_ERROR_ID: u64 = 1344;
 
 #[entry_point]
-pub fn reply(_deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
-    if let SubMsgResult::Err(err) = reply.result {
-        return match reply.id {
-            // happens only when send cw20 amount to recipient failed. Wont refund because this case is unlikely to happen
-            NATIVE_RECEIVE_ID => Ok(Response::new()
-                .set_data(ack_success())
-                .add_attribute("action", "native_receive_id")
-                .add_attribute("error_transferring_ibc_tokens_to_cw20", err)),
-            // fallback case when refund fails. Wont retry => will refund manually
-            REFUND_FAILURE_ID => {
-                // we all set ack success so that this token is stuck on Oraichain, not on OraiBridge because if ack fail => token refunded on OraiBridge yet still refund on Oraichain
-                Ok(Response::new()
-                    .set_data(ack_success())
-                    .add_attribute("action", "refund_failure_id")
-                    .add_attribute("error_trying_to_refund_single_step", err))
-            }
-            // fallback case when refund fails. Wont retry => will refund manually
-            UNIVERSAL_SWAP_ERROR_ID => {
-                // we all set ack success so that this token is stuck on Oraichain, not on OraiBridge because if ack fail => token refunded on OraiBridge yet still refund on Oraichain
-                Ok(Response::new()
-                    .set_data(ack_success())
-                    .add_attribute("action", "universal_swap_error")
-                    .add_attribute("error_trying_to_call_entrypoint_for_universal_swap", err))
-            }
-            _ => Err(ContractError::UnknownReplyId { id: reply.id }),
-        };
+pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
+    match reply.result {
+        SubMsgResult::Err(err) => handle_reply_error(deps, err, reply.id),
+        SubMsgResult::Ok(_) => handle_reply_success(deps, reply.id),
     }
-    // default response
-    Ok(Response::new())
+}
+
+fn handle_reply_error(deps: DepsMut, err: String, id: u64) -> Result<Response, ContractError> {
+    match id {
+        NATIVE_RECEIVE_ID | REFUND_FAILURE_ID => {
+            // add packet to refund array
+            if let Some(packet_sent) = REFUND_INFO.load(deps.storage)? {
+                // remove relay packet store
+                REFUND_INFO.save(deps.storage, &None)?;
+                // store packet into refund list
+                REFUND_INFO_LIST.update(deps.storage, |mut lists| -> StdResult<_> {
+                    lists.push(packet_sent);
+                    Ok(lists)
+                })?;
+            }
+            if id == NATIVE_RECEIVE_ID {
+                return Ok(Response::new()
+                    .set_data(ack_success())
+                    .add_attribute("action", "native_receive_id")
+                    .add_attribute("error_transferring_ibc_tokens_to_cw20", err));
+            }
+            Ok(Response::new()
+                .set_data(ack_success())
+                .add_attribute("action", "refund_failure_id")
+                .add_attribute("error_trying_to_refund_single_step", err))
+        }
+
+        UNIVERSAL_SWAP_ERROR_ID => {
+            // we all set ack success so that this token is stuck on Oraichain, not on OraiBridge because if ack fail => token refunded on OraiBridge yet still refund on Oraichain
+            Ok(Response::new()
+                .set_data(ack_success())
+                .add_attribute("action", "universal_swap_error")
+                .add_attribute("error_trying_to_call_entrypoint_for_universal_swap", err))
+        }
+
+        _ => Err(ContractError::UnknownReplyId { id }),
+    }
+}
+
+fn handle_reply_success(deps: DepsMut, id: u64) -> Result<Response, ContractError> {
+    match id {
+        NATIVE_RECEIVE_ID | REFUND_FAILURE_ID => {
+            REFUND_INFO.save(deps.storage, &None)?;
+            Ok(Response::default())
+        }
+
+        UNIVERSAL_SWAP_ERROR_ID => Ok(Response::default()),
+
+        _ => Err(ContractError::UnknownReplyId { id }),
+    }
 }
 
 #[entry_point]
@@ -471,25 +496,35 @@ pub fn get_follow_up_msgs(
 ) -> Result<Vec<SubMsg>, ContractError> {
     let config = CONFIG.load(storage)?;
     let mut sub_msgs: Vec<SubMsg> = vec![];
-    let send_only_sub_msg =
-        SubMsg::reply_on_error(to_send.send_amount(orai_receiver, None), NATIVE_RECEIVE_ID);
-    if let Some(memo) = memo {
-        // Do not call universal swap if the memo is empty or is an address.
-        if memo.is_empty() || api.addr_validate(&memo).is_ok() {
-            sub_msgs.push(send_only_sub_msg);
-        } else {
-            let swap_then_post_action_msg = to_send.send_amount(
-                config.osor_entrypoint_contract,
-                Some(to_json_binary(&EntryPointExecuteMsg::UniversalSwap {
-                    memo,
-                })?),
-            );
-            let sub_msg =
-                SubMsg::reply_on_error(swap_then_post_action_msg, UNIVERSAL_SWAP_ERROR_ID);
-            sub_msgs.push(sub_msg);
-        }
-    } else {
+    let send_only_sub_msg = SubMsg::reply_always(
+        to_send.send_amount(orai_receiver.clone(), None),
+        NATIVE_RECEIVE_ID,
+    );
+    let mut will_universal_swap = true;
+    if memo.is_none()
+        || memo.clone().unwrap().is_empty()
+        || api.addr_validate(memo.as_ref().unwrap().as_str()).is_ok()
+    {
+        will_universal_swap = false;
         sub_msgs.push(send_only_sub_msg);
+
+        // add this submsg to store
+        let refund_info = RefundInfo {
+            receiver: orai_receiver,
+            amount: to_send.clone(),
+        };
+        REFUND_INFO.save(storage, &Some(refund_info))?;
+    }
+    if memo.is_some() && will_universal_swap {
+        let swap_then_post_action_msg = to_send.send_amount(
+            config.osor_entrypoint_contract,
+            Some(to_json_binary(&EntryPointExecuteMsg::UniversalSwap {
+                memo: memo.unwrap(),
+            })?),
+        );
+        // currently, we not auto refund with universal swap
+        let sub_msg = SubMsg::reply_on_error(swap_then_post_action_msg, UNIVERSAL_SWAP_ERROR_ID);
+        sub_msgs.push(sub_msg);
     }
     Ok(sub_msgs)
 }
@@ -780,11 +815,9 @@ pub fn handle_packet_refund(
     )?;
 
     // check if mint_burn mechanism, then mint token for packet sender, if not, send from contract
-    let send_amount_msg = Amount::from_parts(
-        parse_asset_info_denom(&pair_mapping.asset_info),
-        local_amount,
-    )
-    .send_amount(packet_sender.to_string(), None);
+    let denom = parse_asset_info_denom(&pair_mapping.asset_info);
+    let send_amount_msg = Amount::from_parts(denom.clone(), local_amount)
+        .send_amount(packet_sender.to_string(), None);
     let cosmos_msg = match build_mint_mapping_msg(
         config.token_factory_addr.to_string(),
         pair_mapping.is_mint_burn,
@@ -802,9 +835,16 @@ pub fn handle_packet_refund(
         None => send_amount_msg,
     };
 
+    // save temp refund info, we use this info in handle reply enpoint
+    let temp_refund_info = RefundInfo {
+        amount: Amount::from_parts(denom, local_amount),
+        receiver: packet_sender.to_string(),
+    };
+    REFUND_INFO.save(storage, &Some(temp_refund_info))?;
+
     // used submsg here & reply on error. This means that if the refund process fails => tokens will be locked in this IBC Wasm contract. We will manually handle that case. No retry
     // similar event messages like ibctransfer module
-    Ok(SubMsg::reply_on_error(cosmos_msg, REFUND_FAILURE_ID))
+    Ok(SubMsg::reply_always(cosmos_msg, REFUND_FAILURE_ID))
 }
 
 pub fn build_ibc_send_packet(

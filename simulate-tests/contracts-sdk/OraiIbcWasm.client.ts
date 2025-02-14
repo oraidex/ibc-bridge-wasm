@@ -6,7 +6,7 @@
 
 import { CosmWasmClient, SigningCosmWasmClient, ExecuteResult } from "@cosmjs/cosmwasm-stargate";
 import { StdFee } from "@cosmjs/amino";
-import {Asset, Uint128, Binary, Coin, Cw20Coin, TransferBackMsg, Cw20ReceiveMsg} from "./types";
+import {Asset, Uint128, Binary, Addr, Coin, Cw20Coin, TransferBackMsg, Cw20ReceiveMsg} from "./types";
 import {InstantiateMsg, ExecuteMsg, QueryMsg} from "./OraiIbcWasm.types";
 export interface OraiIbcWasmReadOnlyInterface {
   contractAddress: string;
@@ -40,6 +40,18 @@ export interface OraiIbcWasmInterface extends OraiIbcWasmReadOnlyInterface {
     msg: Binary;
     sender: string;
   }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  updateOwner: ({
+    newOwner
+  }: {
+    newOwner: Addr;
+  }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
+  withdrawAsset: ({
+    coin,
+    receiver
+  }: {
+    coin: Asset;
+    receiver?: Addr;
+  }, _fee?: number | StdFee | "auto", _memo?: string, _funds?: Coin[]) => Promise<ExecuteResult>;
 }
 export class OraiIbcWasmClient extends OraiIbcWasmQueryClient implements OraiIbcWasmInterface {
   client: SigningCosmWasmClient;
@@ -53,6 +65,8 @@ export class OraiIbcWasmClient extends OraiIbcWasmQueryClient implements OraiIbc
     this.contractAddress = contractAddress;
     this.ibcWasmTransfer = this.ibcWasmTransfer.bind(this);
     this.receive = this.receive.bind(this);
+    this.updateOwner = this.updateOwner.bind(this);
+    this.withdrawAsset = this.withdrawAsset.bind(this);
   }
 
   ibcWasmTransfer = async ({
@@ -83,6 +97,31 @@ export class OraiIbcWasmClient extends OraiIbcWasmQueryClient implements OraiIbc
         amount,
         msg,
         sender
+      }
+    }, _fee, _memo, _funds);
+  };
+  updateOwner = async ({
+    newOwner
+  }: {
+    newOwner: Addr;
+  }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      update_owner: {
+        new_owner: newOwner
+      }
+    }, _fee, _memo, _funds);
+  };
+  withdrawAsset = async ({
+    coin,
+    receiver
+  }: {
+    coin: Asset;
+    receiver?: Addr;
+  }, _fee: number | StdFee | "auto" = "auto", _memo?: string, _funds?: Coin[]): Promise<ExecuteResult> => {
+    return await this.client.execute(this.sender, this.contractAddress, {
+      withdraw_asset: {
+        coin,
+        receiver
       }
     }, _fee, _memo, _funds);
   };
